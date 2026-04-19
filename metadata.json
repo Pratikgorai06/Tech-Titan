@@ -1,0 +1,6 @@
+{
+  "name": "Campus Mate",
+  "description": "Comprehensive Student ERP with Attendance Tracking, Event Management, Complaint System, and AI Career Assistant.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}

@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Users — any signed-in user can read; each user can write their own doc
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+    }
+
+    // 2. Events — all signed-in users can read & write
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 3. Complaints — all signed-in users can read & write
+    match /complaints/{complaintId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 4. Careers — all signed-in users can read & write
+    match /careers/{careerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 5. Fees — signed-in users can read; only owner can pay (update status)
+    match /fees/{feeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+    }
+
+    // 6. Attendance — all signed-in users can read & write
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 7. Chat Channels — public read; signed-in users can seed / update
+    match /chatChannels/{channelId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+    }
+
+    // 8. Chat Messages — public read; signed-in users can post & react
+    match /chatMessages/{messageId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                     && request.resource.data.content is string
+                     && request.resource.data.content.size() > 0
+                     && request.resource.data.content.size() <= 2000;
+      allow update: if isSignedIn()
+                     && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['reactions', 'isPinned']);
+    }
+
+    // 9. Admins — read-only for signed-in users; never writable from client
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Catch-all: deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

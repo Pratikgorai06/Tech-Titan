@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Student or Administrator profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "admin"] },
+        "department": { "type": "string" },
+        "academicYear": { "type": "integer" },
+        "totalAttendance": { "type": "number" },
+        "gpa": { "type": "number" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Campus events managed by administration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "location": { "type": "string" },
+        "rsvps": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "date", "location"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Student grievances and tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "subject", "description", "status"]
+    },
+    "Fee": {
+      "title": "Fee",
+      "description": "Financial dues and payment records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "paid"] }
+      },
+      "required": ["studentId", "amount", "dueDate", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Campus events"
+    },
+    "/complaints/{complaintId}": {
+      "schema": "Complaint",
+      "description": "Student complaints"
+    },
+    "/fees/{feeId}": {
+      "schema": "Fee",
+      "description": "Billing records"
+    }
+  }
+}
