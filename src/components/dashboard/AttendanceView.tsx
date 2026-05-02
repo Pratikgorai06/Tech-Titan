@@ -27,19 +27,13 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type Tab = 'geofence' | 'qr';
 type ScanStep = 'idle' | 'scanning' | 'location' | 'selfie' | 'submitting' | 'done' | 'error';
 
 export default function AttendanceView() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('qr');
 
-  // ── Geofence state ──
-  const [geoUser, setGeoUser] = useState<UserProfile | null>(null);
-  const [isInside, setIsInside] = useState(false);
-  const [distance, setDistance] = useState<number | null>(null);
-  const [isMarking, setIsMarking] = useState(false);
-  const [geoStatus, setGeoStatus] = useState<string>('idle');
+  // ── Database User State ──
+  const [dbUser, setDbUser] = useState<UserProfile | null>(null);
   const [campusCoords, setCampusCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // ── QR scan state ──
@@ -53,9 +47,7 @@ export default function AttendanceView() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
-  // FIX: store unsubscribe fn so we can clean up the Firestore listener
-  const geoUnsubRef = useRef<(() => void) | null>(null);
-  const geoWatchRef = useRef<number | null>(null);
+  const dbUserUnsubRef = useRef<(() => void) | null>(null);
 
   // ── Load campus coords + subscribe user (with cleanup) ──
   useEffect(() => {
@@ -69,50 +61,16 @@ export default function AttendanceView() {
     });
 
     if (user) {
-      // FIX: capture and store the unsubscribe fn
-      geoUnsubRef.current = dbService.subscribeUser(user.uid, setGeoUser);
+      dbUserUnsubRef.current = dbService.subscribeUser(user.uid, setDbUser);
       getStudentAttendanceHistory(user.uid).then(setHistory);
     }
 
     return () => {
-      // FIX: clean up Firestore listener on unmount
-      geoUnsubRef.current?.();
+      dbUserUnsubRef.current?.();
     };
   }, [user]);
 
-  // ── Geofence watcher (with cleanup) ──
-  useEffect(() => {
-    if (!campusCoords || !navigator.geolocation) return;
 
-    geoWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const d = haversineKm(latitude, longitude, campusCoords.lat, campusCoords.lng);
-        setDistance(d);
-        setIsInside(d <= RADIUS_THRESHOLD);
-      },
-      (err) => console.error('[Geofence]', err),
-      { enableHighAccuracy: true }
-    );
-
-    return () => {
-      if (geoWatchRef.current !== null) {
-        navigator.geolocation.clearWatch(geoWatchRef.current);
-        geoWatchRef.current = null;
-      }
-    };
-  }, [campusCoords]);
-
-  // ── Stop scanner when leaving QR tab ──
-  useEffect(() => {
-    if (tab !== 'qr' && scannerRef.current) {
-      scannerRef.current.stop().catch(() => {}).finally(() => {
-        // FIX: null the ref after stopping
-        scannerRef.current = null;
-      });
-      setStep('idle');
-    }
-  }, [tab]);
 
   // ── Cleanup scanner on unmount ──
   useEffect(() => {
@@ -124,14 +82,7 @@ export default function AttendanceView() {
     };
   }, []);
 
-  // ── Geofence mark ──
-  const handleGeoMark = async () => {
-    if (!isInside || !user) return;
-    setIsMarking(true);
-    await dbService.markAttendance(user.uid);
-    setGeoStatus('success');
-    setIsMarking(false);
-  };
+
 
   // ── QR: stop any running scanner ──
   const stopScanner = useCallback(async () => {
@@ -224,7 +175,7 @@ export default function AttendanceView() {
     const result = await markQrAttendance({
       sessionId: scanResult.sessionId,
       studentUid: user.uid,
-      studentName: user.displayName || geoUser?.name || 'Student',
+      studentName: user.displayName || dbUser?.name || 'Student',
       collegeId: collegeId.trim(),
       selfieUrl: selfieDataUrl,
       locationLat: userLocation.lat,
@@ -260,32 +211,14 @@ export default function AttendanceView() {
         <p className="text-brand-text-muted mt-1 text-sm">Mark your attendance using QR scan or geofence.</p>
       </header>
 
-      {/* Tab switcher */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
-        {(['qr', 'geofence'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              'px-5 py-2.5 rounded-xl text-sm font-bold transition-all',
-              tab === t ? 'bg-white shadow-sm text-brand-primary' : 'text-brand-text-muted hover:text-brand-text-main'
-            )}
-          >
-            {t === 'qr' ? '📷 QR Scan' : '📍 Geofence'}
-          </button>
-        ))}
-      </div>
-
       <AnimatePresence mode="wait">
-        {/* ── QR Tab ── */}
-        {tab === 'qr' && (
-          <motion.div
-            key="qr"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-8"
-          >
+        <motion.div
+          key="qr"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+        >
             <div className="lg:col-span-2 space-y-6">
 
               {/* Idle — enter college ID */}
@@ -506,71 +439,7 @@ export default function AttendanceView() {
                 )}
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* ── Geofence Tab ── */}
-        {tab === 'geofence' && (
-          <motion.div key="geo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <div className="bg-white p-12 rounded-3xl border border-brand-border flex flex-col items-center justify-center text-center space-y-8 relative overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
-                  <div className="w-[500px] h-[500px] border border-brand-primary rounded-full animate-ping" />
-                </div>
-                <div className={cn(
-                  'w-24 h-24 rounded-full flex items-center justify-center border-4 transition-all relative z-10',
-                  isInside ? 'bg-green-50 text-green-600 border-green-200' : 'bg-red-50 text-red-500 border-red-200'
-                )}>
-                  <MapPin className="w-12 h-12" />
-                </div>
-                <div className="space-y-2 relative z-10">
-                  <h3 className="text-2xl font-bold text-brand-text-main">
-                    {isInside ? 'Presence Detected' : 'Outside Campus Range'}
-                  </h3>
-                  <p className="text-brand-text-muted text-sm">
-                    {distance !== null ? `${distance.toFixed(2)} km from campus center` : 'Scanning for location…'}
-                  </p>
-                  {!campusCoords && (
-                    <p className="text-[12px] text-amber-600 font-medium">
-                      ⚠️ Campus coordinates not configured — contact admin.
-                    </p>
-                  )}
-                </div>
-                <button
-                  disabled={!isInside || isMarking || geoStatus === 'success'}
-                  onClick={handleGeoMark}
-                  className={cn(
-                    'w-full max-w-xs py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all relative z-10 shadow-lg',
-                    geoStatus === 'success'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-brand-primary text-white hover:-translate-y-1 shadow-blue-200 disabled:opacity-50 disabled:translate-y-0'
-                  )}
-                >
-                  {isMarking ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                  {geoStatus === 'success' ? 'Verified Successfully' : 'Mark My Attendance'}
-                </button>
-              </div>
-            </div>
-            <div className="lg:col-span-1">
-              <div className="bg-white p-8 rounded-3xl border border-brand-border space-y-6">
-                <h3 className="font-bold border-b border-brand-border pb-4 uppercase text-[10px] tracking-widest text-brand-text-muted flex items-center justify-between">
-                  Live Progress <TrendingUp className="w-3.5 h-3.5" />
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider mb-1">Total Logs</p>
-                    <p className="text-4xl font-bold text-brand-text-main tabular-nums">{geoUser?.totalAttendance || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider mb-1">Success Rate</p>
-                    <p className="text-4xl font-bold text-green-600 tabular-nums">98%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        </motion.div>
       </AnimatePresence>
     </div>
   );

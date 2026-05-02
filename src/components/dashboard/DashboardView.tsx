@@ -13,20 +13,25 @@ import {
   CircleCheck,
   AlertTriangle
 } from 'lucide-react';
-import { dbService, MOCK_STUDENT_ID, UserProfile, CampusEvent, FeeRecord } from '../../lib/db';
+import { dbService, UserProfile, CampusEvent, FeeRecord } from '../../lib/db';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function DashboardView() {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [fees, setFees] = useState<FeeRecord[]>([]);
 
   useEffect(() => {
+    if (!authUser) return;
+    const uid = authUser.uid;
+
     async function loadData() {
       const [e, f] = await Promise.all([
         dbService.getEvents(),
-        dbService.getFees(MOCK_STUDENT_ID)
+        dbService.getFees(uid)
       ]);
       setEvents(e.slice(0, 3));
       setFees(f);
@@ -34,12 +39,12 @@ export default function DashboardView() {
     loadData();
 
     // Subscribe to realtime user updates for attendance/info
-    const unsubscribe = dbService.subscribeUser(MOCK_STUDENT_ID, (u) => {
+    const unsubscribe = dbService.subscribeUser(uid, (u) => {
       setUser(u);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [authUser]);
 
   const pendingFeesCount = fees.filter(f => f.status === 'pending').length;
   const totalPendingAmount = fees.filter(f => f.status === 'pending').reduce((a, b) => a + b.amount, 0);
@@ -47,7 +52,7 @@ export default function DashboardView() {
   return (
     <div className="space-y-10 animate-in fade-in duration-500">
       {/* Welcome Header */}
-      <header className="flex justify-between items-center">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-brand-text-main">Welcome back, {user?.name || 'Student'}!</h2>
           <p className="text-brand-text-muted text-sm mt-1">{user?.department || 'Computer Science'} • Year {user?.academicYear || '3'}</p>
@@ -55,7 +60,7 @@ export default function DashboardView() {
         <div className="hidden sm:flex items-center gap-3">
           <div className="text-right">
             <div className="font-semibold text-sm">{user?.name}</div>
-            <div className="text-[10px] text-brand-text-muted uppercase tracking-wider font-bold">ID: {MOCK_STUDENT_ID}</div>
+            <div className="text-[10px] text-brand-text-muted uppercase tracking-wider font-bold">ID: {user?.collegeId || authUser?.uid?.slice(0, 10)}</div>
           </div>
           <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-sm border border-brand-border">
             {user?.name?.split(' ').map(n => n[0]).join('') || 'ST'}
@@ -95,8 +100,6 @@ export default function DashboardView() {
       </div>
 
       <div className="flex flex-col gap-6">
-        {/* Unnecessary Mockup Removed */}
-
         {/* Upcoming Events Feed */}
         <section className="bg-white rounded-xl border border-brand-border overflow-hidden">
           <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between">

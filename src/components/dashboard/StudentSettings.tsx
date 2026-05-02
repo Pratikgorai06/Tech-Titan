@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { dbService, MOCK_STUDENT_ID, UserProfile } from '../../lib/db';
+import { dbService, UserProfile } from '../../lib/db';
 import { Settings, Save, Loader2, CheckCircle2, User, Mail, BookOpen, GraduationCap, Users } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
@@ -22,11 +22,11 @@ export default function StudentSettings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const u = await dbService.getUser(MOCK_STUDENT_ID);
+        const u = await dbService.getUser(authUser.uid);
         // Create user if not exists
         if (!u) {
           const newUser: UserProfile = {
-            uid: MOCK_STUDENT_ID,
+            uid: authUser.uid,
             name: authUser?.displayName || 'Alex Johnson',
             email: authUser?.email || 'alex@campusmate.edu',
             role: 'student',
@@ -62,7 +62,7 @@ export default function StudentSettings() {
     setSaving(true);
     setSaved(false);
     try {
-      await setDoc(doc(db, 'users', MOCK_STUDENT_ID), userProfile, { merge: true });
+      await setDoc(doc(db, 'users', authUser?.uid || ''), userProfile, { merge: true });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -178,6 +178,7 @@ export default function StudentSettings() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {field('Full Name', 'name', 'e.g. Alex Johnson', <User />, 'md:col-span-2')}
           {field('Email Address', 'email', 'e.g. user@college.edu', <Mail />, 'md:col-span-2', true)}
+          {field('Registration No. (College ID)', 'collegeId', 'e.g. 21BCE1001', <User />, 'md:col-span-2')}
         </div>
       </div>
 
@@ -197,6 +198,7 @@ export default function StudentSettings() {
           {branches.length > 0 ? selectField('Current Branch', 'department', branches, 'Select Branch', <BookOpen />, 'sm:col-span-2') : field('Current Branch', 'department', 'e.g. Computer Science', <BookOpen />, 'sm:col-span-2')}
           {years.length > 0 ? selectField('Academic Year', 'academicYear', years, 'Select Year', <GraduationCap />) : field('Academic Year', 'academicYear', 'e.g. 3rd Year', <GraduationCap />)}
           {batches.length > 0 ? selectField('Student Batch', 'batch', batches, 'Select Batch', <Users />) : field('Student Batch', 'batch', 'e.g. Batch A1', <Users />)}
+          {field('Section', 'section', 'e.g. CS-A', <Users />, 'sm:col-span-2')}
         </div>
       </div>
     </div>

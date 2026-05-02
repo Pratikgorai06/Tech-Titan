@@ -20,20 +20,20 @@ import {
 } from '../../lib/chatDb';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService, UserProfile } from '../../lib/db';
-import { DMSidebar } from './DMSidebar';
+
 import { MemberList } from './MemberList';
 
 type ViewMode = 'campus' | 'dms';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SPACE_ORDER: SpaceId[] = ['official', 'academic', 'clubs', 'general'];
+const SPACE_ORDER: SpaceId[] = ['technical', 'cultural', 'council', 'discussions'];
 
 const SPACE_META: Record<SpaceId, { icon: string; label: string; color: string; bg: string }> = {
-  official: { icon: '🏫', label: 'Official',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)'  },
-  academic: { icon: '📚', label: 'Academic',  color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
-  clubs:    { icon: '🎭', label: 'Clubs',     color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)'  },
-  general:  { icon: '💬', label: 'General',   color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
+  technical: { icon: '🚀', label: 'Technical Societies',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)'  },
+  cultural:  { icon: '🎭', label: 'Cultural Societies',   color: '#ec4899', bg: 'rgba(236,72,153,0.1)'  },
+  council:   { icon: '🏛️', label: 'Councils',             color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)'  },
+  discussions:{icon: '💬', label: 'Discussions',          color: '#f59e0b', bg: 'rgba(245,158,11,0.1)'  },
 };
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉', '👏', '💯', '🙏'];
@@ -365,7 +365,7 @@ function ChannelSidebar({
   const grouped = SPACE_ORDER.reduce<Record<SpaceId, ChatChannel[]>>((acc, sid) => {
     acc[sid] = channels.filter(c => c.spaceId === sid);
     return acc;
-  }, { official: [], academic: [], clubs: [], general: [] });
+  }, { technical: [], cultural: [], council: [], discussions: [] });
 
   const currentUserId = user?.uid ?? 'anonymous';
   const currentName   = user?.displayName ?? 'Campus User';
@@ -631,7 +631,7 @@ interface CreateModalProps {
 function CreateChannelModal({ onClose, onCreate }: CreateModalProps) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
-  const [space, setSpace] = useState<SpaceId>('general');
+  const [space, setSpace] = useState<SpaceId>('discussions');
   const [isOfficial, setIsOfficial] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -646,7 +646,7 @@ function CreateChannelModal({ onClose, onCreate }: CreateModalProps) {
       spaceName: SPACE_META[space].label,
       spaceColor: SPACE_META[space].color,
       isOfficial,
-      isJoinable: space === 'clubs' || space === 'academic',
+      isJoinable: space !== 'discussions',
       order: 99
     });
     setSubmitting(false);
@@ -688,7 +688,7 @@ function CreateChannelModal({ onClose, onCreate }: CreateModalProps) {
               className="w-full bg-slate-50 border border-brand-border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase text-brand-text-muted mb-1.5 tracking-wider">Category</label>
               <select 
@@ -1006,47 +1006,18 @@ export default function CampusChat({ role }: CampusChatProps) {
         'fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto w-[280px] h-full flex-shrink-0 transition-transform duration-300 bg-slate-50 border-r border-brand-border flex flex-col',
         showMobileSidebar ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
       )}>
-        {/* Navigation Tabs */}
-        <div className="p-4 border-b border-brand-border bg-white flex-shrink-0">
-          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-            <button
-              onClick={() => setView('campus')}
-              className={cn("flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5", view === 'campus' ? "bg-white text-brand-primary shadow-sm" : "text-brand-text-muted hover:text-brand-text-main")}
-            >
-              <Hash className="w-3.5 h-3.5" />
-              Channels
-            </button>
-            <button
-              onClick={() => setView('dms')}
-              className={cn("flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5", view === 'dms' ? "bg-white text-brand-primary shadow-sm" : "text-brand-text-muted hover:text-brand-text-main")}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Messages
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {view === 'campus' ? (
-            <ChannelSidebar
-              channels={channels}
-              activeChannelId={activeChannel?.id ?? ''}
-              joinedIds={joinedIds}
-              notifPrefs={notifPrefs}
-              unreadIds={realUnreadIds}
-              onSelect={handleSelectChannel}
-              onToggleJoin={handleToggleJoin}
-              onAddChannel={(sid) => setShowCreateModal(true)}
-              isAdmin={role === 'admin'}
-            />
-          ) : (
-            <DMSidebar
-              currentUserId={currentUserId}
-              activeDmId={activeDm?.id ?? ''}
-              unreadIds={realUnreadIds}
-              onSelectDm={(id, user) => { setActiveDm({ id, user }); setShowMobileSidebar(false); setShowSearch(false); setSearchQuery(''); }}
-            />
-          )}
+        <div className="flex-1 min-h-0 overflow-hidden pt-4">
+          <ChannelSidebar
+            channels={channels}
+            activeChannelId={activeChannel?.id ?? ''}
+            joinedIds={joinedIds}
+            notifPrefs={notifPrefs}
+            unreadIds={realUnreadIds}
+            onSelect={handleSelectChannel}
+            onToggleJoin={handleToggleJoin}
+            onAddChannel={(sid) => setShowCreateModal(true)}
+            isAdmin={role === 'admin'}
+          />
         </div>
       </div>
 

@@ -142,22 +142,22 @@ export async function hasApplied(studentUid: string, clubId: string): Promise<bo
 export async function getStudentApplications(studentUid: string): Promise<ClubApplication[]> {
   const q = query(
     collection(db, 'clubApplications'),
-    where('studentUid', '==', studentUid),
-    orderBy('submittedAt', 'desc')
+    where('studentUid', '==', studentUid)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as ClubApplication));
+  const apps = snap.docs.map(d => ({ id: d.id, ...d.data() } as ClubApplication));
+  return apps.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
 }
 
 /** Get all applications for a specific club (for club president) */
 export async function getClubApplications(clubId: string): Promise<ClubApplication[]> {
   const q = query(
     collection(db, 'clubApplications'),
-    where('clubId', '==', clubId),
-    orderBy('submittedAt', 'desc')
+    where('clubId', '==', clubId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as ClubApplication));
+  const apps = snap.docs.map(d => ({ id: d.id, ...d.data() } as ClubApplication));
+  return apps.sort((a, b) => b.submittedAt.toMillis() - a.submittedAt.toMillis());
 }
 
 /** Update application status */

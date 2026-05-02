@@ -27,6 +27,7 @@ export interface UserProfile {
   totalAttendance: number;
   gpa: number;
   batch?: string;
+  section?: string;
   collegeId?: string; // roll number / enrollment number
 }
 
@@ -111,9 +112,10 @@ export interface AttendanceRecord {
   verified: boolean; // location inside campus radius
 }
 
-// Mock Current User IDs for demo purposes
-export const MOCK_STUDENT_ID = "alex_2026";
-export const MOCK_ADMIN_ID = "admin_user";
+// @deprecated — These mock IDs are no longer used; all components now use the real auth uid.
+// Kept temporarily so any missed references produce a clear compile error.
+// export const MOCK_STUDENT_ID = "alex_2026";
+// export const MOCK_ADMIN_ID = "admin_user";
 
 export const dbService = {
   // User Management
@@ -143,6 +145,13 @@ export const dbService = {
 
   async promoteToTeacher(uid: string) {
     await updateDoc(doc(db, 'users', uid), { role: 'teacher' });
+  },
+
+  async promoteToClubPresident(uid: string, clubId: string) {
+    await updateDoc(doc(db, 'users', uid), { 
+      role: 'club_president',
+      presidingClubId: clubId
+    });
   },
 
   async demoteToStudent(uid: string) {
@@ -188,15 +197,16 @@ export const dbService = {
     const userSnap = await getDoc(userRef);
     
     if (!userSnap.exists()) {
+      // User doc should already exist from auth sync; create a minimal one as fallback
       await setDoc(userRef, {
         uid: userId,
-        name: userId === MOCK_ADMIN_ID ? 'Campus Admin' : 'Alex Johnson',
-        email: userId === MOCK_ADMIN_ID ? 'admin@campusmate.edu' : 'alex.j@university.edu',
-        role: userId === MOCK_ADMIN_ID ? 'admin' : 'student',
-        department: 'Administration',
-        academicYear: 0,
+        name: 'Unknown User',
+        email: '',
+        role: 'student',
+        department: '',
+        academicYear: '',
         totalAttendance: 1,
-        gpa: 4.0
+        gpa: 0,
       });
       return true;
     }
@@ -245,6 +255,10 @@ export const dbService = {
     await addDoc(collection(db, 'careers'), posting);
   },
 
+  async deleteCareer(careerId: string) {
+    await deleteDoc(doc(db, 'careers', careerId));
+  },
+
   // Fees
   async getFees(userId?: string) {
     let q;
@@ -282,5 +296,13 @@ export const dbService = {
 
   async addNotice(notice: Omit<CampusNotice, 'id'>) {
     await addDoc(collection(db, 'notices'), notice);
-  }
+  },
+
+  async addFee(fee: Omit<FeeRecord, 'id'>) {
+    await addDoc(collection(db, 'fees'), fee);
+  },
+
+  async deleteFee(feeId: string) {
+    await deleteDoc(doc(db, 'fees', feeId));
+  },
 };

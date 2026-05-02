@@ -17,10 +17,11 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { CLUBS_LIST } from './clubsDb';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SpaceId = 'official' | 'academic' | 'clubs' | 'general';
+export type SpaceId = 'technical' | 'cultural' | 'council' | 'discussions';
 
 export interface ChatChannel {
   id: string;
@@ -107,35 +108,11 @@ export function getInitials(name: string): string {
 // ─── Space ordering for client-side sort ──────────────────────────────────────
 
 const SPACE_ORDER_MAP: Record<SpaceId, number> = {
-  official: 0,
-  academic: 1,
-  clubs: 2,
-  general: 3,
+  technical: 0,
+  cultural: 1,
+  council: 2,
+  discussions: 3,
 };
-
-// ─── Default Channel Seed Data ────────────────────────────────────────────────
-
-const DEFAULT_CHANNELS: Omit<ChatChannel, 'id' | 'createdAt'>[] = [
-  // Official (admin-only post)
-  { name: 'announcements',      spaceId: 'official', spaceName: '🏫 Official', spaceColor: '#2563eb', description: 'Campus-wide official announcements', isOfficial: true,  isJoinable: false, memberCount: 0, order: 0 },
-  { name: 'exam-schedule',      spaceId: 'official', spaceName: '🏫 Official', spaceColor: '#2563eb', description: 'Exam dates, seating plans & timetables', isOfficial: true,  isJoinable: false, memberCount: 0, order: 1 },
-  { name: 'placements',         spaceId: 'official', spaceName: '🏫 Official', spaceColor: '#2563eb', description: 'Official placement drive announcements', isOfficial: true,  isJoinable: false, memberCount: 0, order: 2 },
-  // Academic (year-specific)
-  { name: 'year-1-batch',       spaceId: 'academic', spaceName: '📚 Academic', spaceColor: '#10b981', description: 'First year student discussions',               isOfficial: false, isJoinable: true,  memberCount: 0, order: 0 },
-  { name: 'year-2-batch',       spaceId: 'academic', spaceName: '📚 Academic', spaceColor: '#10b981', description: 'Second year student discussions',              isOfficial: false, isJoinable: true,  memberCount: 0, order: 1 },
-  { name: 'year-3-batch',       spaceId: 'academic', spaceName: '📚 Academic', spaceColor: '#10b981', description: 'Third year student discussions',               isOfficial: false, isJoinable: true,  memberCount: 0, order: 2 },
-  { name: 'year-4-batch',       spaceId: 'academic', spaceName: '📚 Academic', spaceColor: '#10b981', description: 'Final year — placement prep & beyond',         isOfficial: false, isJoinable: true,  memberCount: 0, order: 3 },
-  // Clubs
-  { name: 'coding-club',        spaceId: 'clubs',    spaceName: '🎭 Clubs',    spaceColor: '#8b5cf6', description: 'Competitive programming, hackathons & open source', isOfficial: false, isJoinable: true, memberCount: 0, order: 0 },
-  { name: 'photography-club',   spaceId: 'clubs',    spaceName: '🎭 Clubs',    spaceColor: '#8b5cf6', description: 'Share shots, workshops & campus photo events', isOfficial: false, isJoinable: true, memberCount: 0, order: 1 },
-  { name: 'nss-ncc',            spaceId: 'clubs',    spaceName: '🎭 Clubs',    spaceColor: '#8b5cf6', description: 'NSS and NCC activity updates & volunteering', isOfficial: false, isJoinable: true, memberCount: 0, order: 2 },
-  { name: 'entrepreneurship',   spaceId: 'clubs',    spaceName: '🎭 Clubs',    spaceColor: '#8b5cf6', description: 'Startup ideas, funding & E-Cell events',       isOfficial: false, isJoinable: true, memberCount: 0, order: 3 },
-  // General
-  { name: 'general',            spaceId: 'general',  spaceName: '💬 General',  spaceColor: '#f59e0b', description: 'Open campus conversations',               isOfficial: false, isJoinable: false, memberCount: 0, order: 0 },
-  { name: 'lost-and-found',     spaceId: 'general',  spaceName: '💬 General',  spaceColor: '#f59e0b', description: 'Report or find items lost around campus',  isOfficial: false, isJoinable: false, memberCount: 0, order: 1 },
-  { name: 'hostel-life',        spaceId: 'general',  spaceName: '💬 General',  spaceColor: '#f59e0b', description: 'Hostel, food, mess menu & roommate chat',   isOfficial: false, isJoinable: false, memberCount: 0, order: 2 },
-  { name: 'off-topic',          spaceId: 'general',  spaceName: '💬 General',  spaceColor: '#f59e0b', description: 'Memes, movies, cricket — anything goes',    isOfficial: false, isJoinable: false, memberCount: 0, order: 3 },
-];
 
 // ─── Chat DB Service ──────────────────────────────────────────────────────────
 
@@ -145,26 +122,71 @@ export const chatDb = {
    * Uses a batch write — safe to call on every app load.
    */
   async seedChannelsIfEmpty(): Promise<void> {
-    const snap = await getDocs(collection(db, 'chatChannels'));
-    if (!snap.empty) return;
-
-    const batch = writeBatch(db);
-    for (const ch of DEFAULT_CHANNELS) {
-      const ref = doc(collection(db, 'chatChannels'));
-      batch.set(ref, { ...ch, createdAt: Timestamp.now() });
-    }
-    await batch.commit();
+    // Deprecated: We now auto-populate from CLUBS_LIST in getChannels
   },
 
   /**
    * Fetches all channels and sorts them client-side.
-   * Avoids compound index requirements in Firestore.
+   * Auto-populates club channels and a default discussion channel.
    */
   async getChannels(): Promise<ChatChannel[]> {
     const snap = await getDocs(collection(db, 'chatChannels'));
-    const channels = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatChannel));
+    let dbChannels = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatChannel));
 
-    return channels.sort((a, b) => {
+    // 1. Generate Club Channels
+    const clubChannels: ChatChannel[] = CLUBS_LIST.map((club, index) => {
+      let spaceId: SpaceId = 'technical';
+      let spaceName = '🚀 Technical Societies';
+      let spaceColor = '#3b82f6';
+      
+      if (club.category === 'Cultural Society') {
+        spaceId = 'cultural';
+        spaceName = '🎭 Cultural Societies';
+        spaceColor = '#ec4899';
+      } else if (club.category === 'Council') {
+        spaceId = 'council';
+        spaceName = '🏛️ Councils';
+        spaceColor = '#8b5cf6';
+      }
+      
+      return {
+        id: club.id,
+        name: club.id,
+        spaceId,
+        spaceName,
+        spaceColor,
+        description: club.description,
+        isOfficial: false,
+        isJoinable: true,
+        memberCount: 0,
+        createdAt: Timestamp.now(),
+        order: index
+      };
+    });
+    
+    // 2. Default Discussion Channel
+    const discussionChannel: ChatChannel = {
+        id: 'general-discussions',
+        name: 'general-discussions',
+        spaceId: 'discussions',
+        spaceName: '💬 Discussions',
+        spaceColor: '#f59e0b',
+        description: 'General discussions for events, inductions, and Q&A',
+        isOfficial: false,
+        isJoinable: false, // False means no explicit join needed, it's public
+        memberCount: 0,
+        createdAt: Timestamp.now(),
+        order: 0
+    };
+
+    // 3. Filter DB channels to valid spaces
+    const validSpaces = ['technical', 'cultural', 'council', 'discussions'];
+    dbChannels = dbChannels.filter(c => validSpaces.includes(c.spaceId as string));
+    
+    // 4. Combine and Sort
+    const allChannels = [...clubChannels, discussionChannel, ...dbChannels];
+
+    return allChannels.sort((a, b) => {
       const spaceDiff = (SPACE_ORDER_MAP[a.spaceId] ?? 99) - (SPACE_ORDER_MAP[b.spaceId] ?? 99);
       if (spaceDiff !== 0) return spaceDiff;
       return (a.order ?? 0) - (b.order ?? 0);

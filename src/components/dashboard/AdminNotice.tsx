@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { dbService, CampusNotice, MOCK_ADMIN_ID } from '../../lib/db';
+import { dbService, CampusNotice } from '../../lib/db';
 import { Loader2, FileText, Image as ImageIcon, Send } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminNotice() {
+  const { user } = useAuth();
   const [notices, setNotices] = useState<CampusNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
@@ -34,7 +36,7 @@ export default function AdminNotice() {
       fileUrl: fileUrl || undefined,
       fileType: fileType || undefined,
       createdAt: Timestamp.now(),
-      createdBy: MOCK_ADMIN_ID
+      createdBy: user?.uid || 'admin'
     };
 
     await dbService.addNotice(newNotice);

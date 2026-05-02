@@ -17,7 +17,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { dbService, CareerPosting, MOCK_STUDENT_ID } from '../../lib/db';
+import { dbService, CareerPosting } from '../../lib/db';
 
 export default function CareerHubView() {
   const [jobs, setJobs] = useState<CareerPosting[]>([]);

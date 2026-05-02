@@ -76,7 +76,7 @@ export default function AdminComplaints() {
               className="bg-white border border-brand-border rounded-3xl p-8 flex flex-col md:flex-row gap-8 group hover:shadow-xl transition-all"
             >
               {/* Status Column */}
-              <div className="flex flex-col items-center justify-center space-y-3 min-w-[120px] border-r border-brand-border pr-8">
+              <div className="flex flex-col items-center justify-center space-y-3 min-w-[120px] md:border-r border-brand-border md:pr-8 md:pb-0 pb-8 border-b md:border-b-0">
                 <div className={cn(
                   "p-4 rounded-2xl border",
                   complaint.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" :

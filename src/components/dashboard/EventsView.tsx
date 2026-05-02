@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { dbService, CampusEvent, MOCK_STUDENT_ID } from '../../lib/db';
+import { dbService, CampusEvent } from '../../lib/db';
 import {
   Calendar, MapPin, Loader2, Clock, X, CheckCircle2,
   ExternalLink, ChevronRight, ArrowLeft, AlertTriangle
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 type Step = 'list' | 'detail' | 'terms';
 
 export default function EventsView() {
+  const { user } = useAuth();
   const [events, setEvents]         = useState<CampusEvent[]>([]);
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState<'All' | 'My RSVPs'>('All');
@@ -96,7 +98,7 @@ export default function EventsView() {
   };
 
   const filteredEvents = events.filter(e =>
-    filter === 'All' || e.rsvps.includes(MOCK_STUDENT_ID)
+    filter === 'All' || e.rsvps.includes(user?.uid || '')
   );
 
   if (loading) return (

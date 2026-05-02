@@ -150,30 +150,31 @@ export function listenToSessionAttendance(
 ) {
   const q = query(
     collection(db, 'attendanceRecords'),
-    where('sessionId', '==', sessionId),
-    orderBy('markedAt', 'asc')
+    where('sessionId', '==', sessionId)
   );
   return onSnapshot(q, (snap) => {
-    onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord)));
+    const records = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+    records.sort((a, b) => a.markedAt.toMillis() - b.markedAt.toMillis());
+    onChange(records);
   });
 }
 
 export async function getSessionAttendance(sessionId: string): Promise<AttendanceRecord[]> {
   const q = query(
     collection(db, 'attendanceRecords'),
-    where('sessionId', '==', sessionId),
-    orderBy('markedAt', 'asc')
+    where('sessionId', '==', sessionId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+  const records = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+  return records.sort((a, b) => a.markedAt.toMillis() - b.markedAt.toMillis());
 }
 
 export async function getStudentAttendanceHistory(studentUid: string): Promise<AttendanceRecord[]> {
   const q = query(
     collection(db, 'attendanceRecords'),
-    where('studentUid', '==', studentUid),
-    orderBy('markedAt', 'desc')
+    where('studentUid', '==', studentUid)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+  const records = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
+  return records.sort((a, b) => b.markedAt.toMillis() - a.markedAt.toMillis());
 }

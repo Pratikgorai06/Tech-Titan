@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { dbService, FeeRecord, MOCK_STUDENT_ID } from '../../lib/db';
+import { dbService, FeeRecord } from '../../lib/db';
 import { CreditCard, CheckCircle, Shield, Loader2, Printer, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 // ── Receipt component (rendered into a hidden div for printing) ─────────────
 function FeeReceipt({ fee, onClose }: { fee: FeeRecord; onClose: () => void }) {
@@ -113,6 +114,7 @@ function FeeReceipt({ fee, onClose }: { fee: FeeRecord; onClose: () => void }) {
 
 // ── Main FeesView ─────────────────────────────────────────────────────────────
 export default function FeesView() {
+  const { user } = useAuth();
   const [fees, setFees]           = useState<FeeRecord[]>([]);
   const [isPaying, setIsPaying]   = useState<string | null>(null);
   const [receiptFee, setReceiptFee] = useState<FeeRecord | null>(null);
@@ -120,15 +122,17 @@ export default function FeesView() {
 
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  useEffect(() => { fetchFees(); }, []);
+  useEffect(() => { if (user) fetchFees(); }, [user]);
 
   const fetchFees = async () => {
-    const data = await dbService.getFees(MOCK_STUDENT_ID);
+    if (!user) return;
+    const uid = user.uid;
+    const data = await dbService.getFees(uid);
     if (data.length === 0) {
       setFees([
-        { id: 'f1', studentId: MOCK_STUDENT_ID, amount: 85000, description: 'Semester VI Tuition', dueDate: '2026-05-30', status: 'pending' },
-        { id: 'f2', studentId: MOCK_STUDENT_ID, amount: 3500,  description: 'Library Late Return',  dueDate: '2026-04-20', status: 'pending' },
-        { id: 'f3', studentId: MOCK_STUDENT_ID, amount: 18000, description: 'Hostel Maintenance',   dueDate: '2026-06-15', status: 'pending' },
+        { id: 'f1', studentId: uid, amount: 85000, description: 'Semester VI Tuition', dueDate: '2026-05-30', status: 'pending' },
+        { id: 'f2', studentId: uid, amount: 3500,  description: 'Library Late Return',  dueDate: '2026-04-20', status: 'pending' },
+        { id: 'f3', studentId: uid, amount: 18000, description: 'Hostel Maintenance',   dueDate: '2026-06-15', status: 'pending' },
       ]);
     } else {
       setFees(data);
@@ -144,11 +148,11 @@ export default function FeesView() {
   };
 
   const handlePayMess = async () => {
-    if (!messMonth) return;
+    if (!messMonth || !user) return;
     const feeId = `mess_${messMonth.toLowerCase()}_${Date.now()}`;
     const fee: FeeRecord = {
       id: feeId,
-      studentId: MOCK_STUDENT_ID,
+      studentId: user.uid,
       amount: 4500,
       description: `${messMonth} Mess Fee`,
       dueDate: 'End of Month',

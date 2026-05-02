@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, Send, X, Bot, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { dbService, MOCK_STUDENT_ID, UserProfile, CampusEvent, FeeRecord, Complaint, CampusNotice } from '../../lib/db';
+import { dbService, UserProfile, CampusEvent, FeeRecord, Complaint, CampusNotice } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface StudentContext {
@@ -92,13 +92,15 @@ export default function Chatbot() {
 
   // Load personalised context from Firebase once
   useEffect(() => {
+    if (!authUser) return;
     async function load() {
       try {
+        const uid = authUser!.uid;
         const [profile, events, fees, complaints, notices] = await Promise.all([
-          dbService.getUser(MOCK_STUDENT_ID),
+          dbService.getUser(uid),
           dbService.getEvents(),
-          dbService.getFees(MOCK_STUDENT_ID),
-          dbService.getComplaints(MOCK_STUDENT_ID),
+          dbService.getFees(uid),
+          dbService.getComplaints(uid),
           dbService.getNotices(),
         ]);
         setCtx({ profile, events, fees, complaints, notices });

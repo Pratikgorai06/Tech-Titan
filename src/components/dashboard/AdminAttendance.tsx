@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { CLUBS_LIST } from '../../lib/clubsDb';
 
 type AdminTab = 'students' | 'staff' | 'sessions';
 
@@ -22,6 +23,7 @@ export default function AdminAttendance() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [promoting, setPromoting] = useState<string | null>(null);
+  const [selectedClubIds, setSelectedClubIds] = useState<Record<string, string>>({});
 
   useEffect(() => { fetchData(); }, []);
 
@@ -59,14 +61,26 @@ export default function AdminAttendance() {
     setPromoting(null);
   };
 
+  const handleMakePresident = async (uid: string) => {
+    const clubId = selectedClubIds[uid];
+    if (!clubId) {
+      alert("Please select a club first!");
+      return;
+    }
+    setPromoting(uid);
+    await dbService.promoteToClubPresident(uid, clubId);
+    await fetchData();
+    setPromoting(null);
+  };
+
   const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (u.department || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
   const filteredStaff = staff.filter(t =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (t.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) return (
@@ -194,14 +208,35 @@ export default function AdminAttendance() {
                       </div>
                     </td>
                     <td className="px-6 py-6">
-                      <button
-                        onClick={() => handlePromote(user.uid)}
-                        disabled={promoting === user.uid}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-[11px] font-black hover:bg-amber-100 transition-colors disabled:opacity-50"
-                      >
-                        {promoting === user.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowUpRight className="w-3 h-3" />}
-                        Make Teacher
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => handlePromote(user.uid)}
+                          disabled={promoting === user.uid}
+                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-[11px] font-black hover:bg-amber-100 transition-colors disabled:opacity-50 w-full"
+                        >
+                          {promoting === user.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowUpRight className="w-3 h-3" />}
+                          Make Teacher
+                        </button>
+                        <div className="flex gap-1">
+                          <select
+                            value={selectedClubIds[user.uid] || ''}
+                            onChange={e => setSelectedClubIds(prev => ({ ...prev, [user.uid]: e.target.value }))}
+                            className="bg-white border border-brand-border rounded-lg text-[10px] px-1 py-1 flex-1 min-w-0"
+                          >
+                            <option value="">Select Club...</option>
+                            {CLUBS_LIST.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <button
+                            onClick={() => handleMakePresident(user.uid)}
+                            disabled={promoting === user.uid || !selectedClubIds[user.uid]}
+                            className="flex items-center justify-center gap-1 px-2 py-1 bg-violet-50 border border-violet-200 text-violet-700 rounded-lg text-[10px] font-black hover:bg-violet-100 transition-colors disabled:opacity-50"
+                            title="Make President"
+                          >
+                            {promoting === user.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowUpRight className="w-3 h-3" />}
+                            Pres.
+                          </button>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-6 text-right">
                       <button onClick={() => setSelectedUser(user)} className="p-2 hover:bg-white rounded-xl border border-transparent hover:border-brand-border transition-all hover:text-brand-primary">

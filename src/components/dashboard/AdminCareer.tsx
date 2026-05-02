@@ -9,6 +9,7 @@ export default function AdminCareer() {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -42,6 +43,13 @@ export default function AdminCareer() {
     setShowForm(false);
     await fetchPostings();
     setIsAdding(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    await dbService.deleteCareer(id);
+    setPostings(prev => prev.filter(p => p.id !== id));
+    setDeletingId(null);
   };
 
   if (loading) return (
@@ -153,7 +161,7 @@ export default function AdminCareer() {
                       </div>
                       <p className="text-[13px] font-medium text-brand-text-muted">{posting.company} • {posting.location}</p>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
                        <div className="px-4 py-2 bg-slate-50 border border-brand-border rounded-xl">
                           <p className="text-[9px] font-black text-brand-text-muted uppercase tracking-widest mb-0.5">Package</p>
                           <p className="text-xs font-black text-brand-text-main">{posting.salary || '—'}</p>
@@ -164,8 +172,8 @@ export default function AdminCareer() {
                        </div>
                     </div>
                     <div className="flex gap-2">
-                       <button className="p-3 border border-brand-border rounded-2xl hover:bg-white hover:text-brand-emergency transition-all">
-                          <Trash2 className="w-4 h-4" />
+                       <button onClick={() => handleDelete(posting.id)} disabled={deletingId === posting.id} className="p-3 border border-brand-border rounded-2xl hover:bg-white hover:text-brand-emergency transition-all disabled:opacity-50">
+                          {deletingId === posting.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                        </button>
                     </div>
                   </div>

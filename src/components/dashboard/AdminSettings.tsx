@@ -273,7 +273,7 @@ export default function AdminSettings() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-brand-text-muted uppercase tracking-widest px-1">Latitude</label>
             <input
@@ -373,7 +373,7 @@ export default function AdminSettings() {
             {/* Role selector */}
             <div className="space-y-2">
               <label className="text-[11px] font-black text-brand-text-muted uppercase tracking-widest">Assign Role</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {([
                   { role: 'student', label: 'Student', icon: Users2, color: 'from-blue-400 to-blue-600' },
                   { role: 'teacher', label: 'Teacher', icon: GraduationCap, color: 'from-amber-400 to-orange-500' },

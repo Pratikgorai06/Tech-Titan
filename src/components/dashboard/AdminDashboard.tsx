@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dbService, CampusEvent, Complaint, UserProfile } from '../../lib/db';
+import { dbService, CampusEvent, Complaint, UserProfile, FeeRecord } from '../../lib/db';
 import {
   ShieldCheck,
   Users,
@@ -11,7 +11,8 @@ import {
   MessageSquare,
   TrendingUp,
   Activity,
-  ChevronRight
+  ChevronRight,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
@@ -22,21 +23,24 @@ export default function AdminDashboard() {
     users: 0,
     complaints: 0,
     events: 0,
-    attendance: 94.2
+    attendance: 94.2,
+    pendingFees: 0,
   });
 
   useEffect(() => {
     async function loadStats() {
-      const [u, c, e] = await Promise.all([
+      const [u, c, e, f] = await Promise.all([
         dbService.getAllUsers(),
         dbService.getComplaints(),
-        dbService.getEvents()
+        dbService.getEvents(),
+        dbService.getFees(),
       ]);
       setStats(prev => ({
         ...prev,
         users: u.length,
         complaints: c.filter(item => item.status === 'pending').length,
-        events: e.length
+        events: e.length,
+        pendingFees: f.filter(fee => fee.status === 'pending').length,
       }));
     }
     loadStats();
@@ -47,6 +51,7 @@ export default function AdminDashboard() {
     { label: 'Open Complaints', value: stats.complaints, icon: AlertCircle, color: 'text-brand-emergency', bg: 'bg-red-50', border: 'border-red-100', route: '/admin/complaints' },
     { label: 'Campus Events', value: stats.events, icon: Calendar, color: 'text-accent-purple', bg: 'bg-purple-50', border: 'border-purple-100', route: '/admin/events' },
     { label: 'Avg. Attendance', value: `${stats.attendance}%`, icon: Activity, color: 'text-accent-green', bg: 'bg-green-50', border: 'border-green-100', route: '/admin/attendance' },
+    { label: 'Pending Fees', value: stats.pendingFees, icon: CreditCard, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', route: '/admin/fees' },
   ];
 
   return (
@@ -68,7 +73,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Primary Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {systemStats.map((stat, i) => (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -92,8 +97,8 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="flex flex-col gap-8">
+        <div className="space-y-6">
           <div className="bg-white border border-brand-border rounded-3xl overflow-hidden shadow-sm">
             <div className="px-8 py-5 border-b border-brand-border flex items-center justify-between bg-slate-50/50">
               <h3 className="text-xs font-black text-brand-text-muted uppercase tracking-widest">Administrative Quick Links</h3>
@@ -104,7 +109,8 @@ export default function AdminDashboard() {
                 { title: 'Student Roster', desc: 'Audit student academic records', route: '/admin/attendance', icon: Users },
                 { title: 'Event Planner', desc: 'Schedule new campus activity', route: '/admin/events', icon: Calendar },
                 { title: 'Support Inbox', desc: 'Respond to student grievances', route: '/admin/complaints', icon: MessageSquare },
-                { title: 'Job Board', desc: 'Post new career opportunities', route: '/admin/career', icon: Activity }
+                { title: 'Job Board', desc: 'Post new career opportunities', route: '/admin/career', icon: Activity },
+                { title: 'Fee Manager', desc: 'Create and track student fees', route: '/admin/fees', icon: CreditCard },
               ].map(link => (
                 <button
                   key={link.title}
@@ -123,41 +129,6 @@ export default function AdminDashboard() {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="lg:col-span-1 bg-slate-950 p-10 rounded-3xl text-white space-y-8 relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            <ShieldCheck className="w-40 h-40" />
-          </div>
-          <div className="space-y-2 relative z-10">
-            <h4 className="text-2xl font-black tracking-tighter">System Intelligence</h4>
-            <p className="text-xs text-slate-400 leading-relaxed font-medium">AI performance monitoring is analyzing campus engagement trends.</p>
-          </div>
-
-          <div className="space-y-6 relative z-10">
-            <div className="space-y-2">
-              <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-500">
-                <span>Server Load</span>
-                <span>14%</span>
-              </div>
-              <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                <div className="h-full bg-brand-primary w-[14%]" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-500">
-                <span>Database Sync</span>
-                <span>Optimized</span>
-              </div>
-              <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                <div className="h-full bg-accent-green w-[100%]" />
-              </div>
-            </div>
-          </div>
-
-          <button className="w-full py-4 bg-white text-black rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-colors relative z-10">
-            Generate Report
-          </button>
         </div>
       </div>
     </div>

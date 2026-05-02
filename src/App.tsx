@@ -16,6 +16,7 @@ import AdminEvents from './components/dashboard/AdminEvents';
 import AdminCareer from './components/dashboard/AdminCareer';
 import AdminSettings from './components/dashboard/AdminSettings';
 import AdminNotice from './components/dashboard/AdminNotice';
+import AdminFees from './components/dashboard/AdminFees';
 import NotesView from './components/dashboard/NotesView';
 import NoticeView from './components/dashboard/NoticeView';
 import TeacherDashboard from './components/dashboard/TeacherDashboard';
@@ -78,7 +79,6 @@ export default function App() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} role={role} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <EmergencyBanner message="URGENT: Campus main library will be closed for maintenance until tomorrow morning." />
 
         <header className="lg:hidden h-16 flex items-center px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
           <button
@@ -96,6 +96,7 @@ export default function App() {
               {role === 'admin' && <Route path="/admin/chat" element={<CampusChat role={role} />} />}
               {role === 'teacher' && <Route path="/teacher/chat" element={<CampusChat role={'student'} />} />}
               {role === 'student' && <Route path="/student/chat" element={<CampusChat role={role} />} />}
+              {role === 'club_president' && <Route path="/club_president/chat" element={<CampusChat role={'student'} />} />}
             </Routes>
           </div>
         ) : (
@@ -108,6 +109,7 @@ export default function App() {
                   <Route path="/admin/complaints" element={<AdminComplaints />} />
                   <Route path="/admin/events" element={<AdminEvents />} />
                   <Route path="/admin/career" element={<AdminCareer />} />
+                  <Route path="/admin/fees" element={<AdminFees />} />
                   <Route path="/admin/notice" element={<AdminNotice />} />
                   <Route path="/admin/settings" element={<AdminSettings />} />
                   <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
@@ -123,6 +125,9 @@ export default function App() {
               ) : role === 'club_president' ? (
                 <>
                   <Route path="/club_president/dashboard" element={<ClubPresidentDashboard />} />
+                  <Route path="/club_president/events" element={<AdminEvents />} />
+                  <Route path="/club_president/notice" element={<AdminNotice />} />
+                  {/* FORCED HMR RELOAD */}
                   <Route path="/club_president/settings" element={<StudentSettings />} />
                   <Route path="*" element={<Navigate to="/club_president/dashboard" replace />} />
                 </>

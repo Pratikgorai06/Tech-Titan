@@ -28,6 +28,9 @@ const studentNav = [
 
 const clubPresidentNav = [
   { id: 'dashboard', label: 'Club Dashboard', icon: Landmark },
+  { id: 'events', label: 'Manage Events', icon: Calendar },
+  { id: 'notice', label: 'Notice Board', icon: ClipboardList, badge: 'NEW' },
+  { id: 'chat', label: 'Campus Chat', icon: MessageCircle, badge: 'NEW' },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -44,8 +47,9 @@ const adminNav = [
   { id: 'events', label: 'Manage Events', icon: Calendar },
   { id: 'complaints', label: 'Complaints Inbox', icon: MessageSquare },
   { id: 'career', label: 'Career Management', icon: Briefcase },
+  { id: 'fees', label: 'Fee Management', icon: CreditCard },
   { id: 'notice', label: 'Notice Board', icon: ClipboardList, badge: 'NEW' },
-  { id: 'settings', label: 'System Config', icon: Settings },
+  { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'chat', label: 'Campus Chat', icon: MessageCircle, badge: 'NEW' },
 ];
 
@@ -185,8 +189,7 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
               </div>
             </div>
 
-            {role !== 'teacher' && (
-              <Link
+            <Link
                 to={`/${role}/settings`}
                 onClick={onClose}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-text-muted hover:bg-slate-50 transition-all font-bold text-[13px]"
@@ -194,7 +197,6 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
                 <Settings className="w-4 h-4" />
                 <span>Settings</span>
               </Link>
-            )}
 
             <button
               onClick={signOut}

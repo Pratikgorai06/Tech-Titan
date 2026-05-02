@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { dbService, Complaint, MOCK_STUDENT_ID } from '../../lib/db';
+import { dbService, Complaint } from '../../lib/db';
 import { Send, Clock, MessageSquare, AlertCircle, Loader2, CheckCircle2, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+import { useAuth } from '../../contexts/AuthContext';
+
 export default function ComplaintsView() {
+  const { user } = useAuth();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -16,15 +19,16 @@ export default function ComplaintsView() {
   }, []);
 
   const fetchComplaints = async () => {
-    const data = await dbService.getComplaints(MOCK_STUDENT_ID);
+    if (!user) return;
+    const data = await dbService.getComplaints(user.uid);
     setComplaints(data);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject || !description) return;
+    if (!subject || !description || !user) return;
     setIsSubmitting(true);
-    await dbService.raiseComplaint(MOCK_STUDENT_ID, subject, description);
+    await dbService.raiseComplaint(user.uid, subject, description);
     setSubject('');
     setDescription('');
     await fetchComplaints();

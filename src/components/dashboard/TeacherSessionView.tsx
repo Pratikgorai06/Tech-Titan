@@ -88,7 +88,7 @@ export default function TeacherSessionView() {
       </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Present', value: records.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-100' },
           { label: 'Location Verified', value: verified, icon: MapPin, color: 'text-green-600', bg: 'bg-green-50 border-green-100' },
