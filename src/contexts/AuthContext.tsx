@@ -8,12 +8,13 @@ import {
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../lib/firebase';
 
-// ─── Admin email — hardcoded ──────────────────────────────────────────────────
+// ─── Hardcoded role overrides ────────────────────────────────────────────────
 export const ADMIN_EMAIL = 'pratikgorai20006@gmail.com';
+export const HARDCODED_TEACHERS: string[] = ['pratikgorai06@gmail.com'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type AppRole = 'student' | 'admin';
+export type AppRole = 'student' | 'admin' | 'teacher' | 'club_president';
 
 interface AuthContextValue {
   user: User | null;
@@ -43,6 +44,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setLoading] = useState(true);
   const [authError, setError]   = useState('');
 
+  // Resolve role: admin email wins; hardcoded teachers next; otherwise read from Firestore
+  const resolveRole = async (firebaseUser: User): Promise<AppRole> => {
+    if (firebaseUser.email === ADMIN_EMAIL) return 'admin';
+    if (firebaseUser.email && HARDCODED_TEACHERS.includes(firebaseUser.email)) return 'teacher';
+    try {
+      const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (snap.exists()) {
+        const stored = snap.data().role as AppRole | undefined;
+        if (stored === 'teacher' || stored === 'admin' || stored === 'club_president') return stored;
+      }
+    } catch (e) {
+      console.error('[Auth] Role fetch failed:', e);
+    }
+    return 'student';
+  };
+
   // Persist user profile to Firestore on first sign-in
   const upsertUserProfile = async (firebaseUser: User, resolvedRole: AppRole) => {
     const ref = doc(db, 'users', firebaseUser.uid);
@@ -59,9 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         gpa: 0,
         createdAt: Timestamp.now(),
       });
-    } else if (snap.data().role !== resolvedRole) {
-      // Ensure role stays in sync with the hardcoded admin email
-      await setDoc(ref, { role: resolvedRole }, { merge: true });
+    } else {
+      // Keep admin email always synced; preserve teacher role if already set
+      const current = snap.data().role as AppRole;
+      if (resolvedRole === 'admin' && current !== 'admin') {
+        await setDoc(ref, { role: 'admin' }, { merge: true });
+      }
     }
   };
 
@@ -69,8 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const resolvedRole: AppRole =
-          firebaseUser.email === ADMIN_EMAIL ? 'admin' : 'student';
+        const resolvedRole = await resolveRole(firebaseUser);
         setUser(firebaseUser);
         setRole(resolvedRole);
         try {

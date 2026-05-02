@@ -21,12 +21,13 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher' | 'club_president';
   department: string;
   academicYear: number | string;
   totalAttendance: number;
   gpa: number;
   batch?: string;
+  collegeId?: string; // roll number / enrollment number
 }
 
 export interface CampusEvent {
@@ -80,6 +81,36 @@ export interface CampusNotice {
   createdBy: string;
 }
 
+// ─── QR Attendance Interfaces ─────────────────────────────────────────────────
+
+export interface QrSession {
+  id: string;
+  teacherUid: string;
+  teacherName: string;
+  subject: string;
+  branch: string;
+  year: number;
+  campusLat: number;
+  campusLng: number;
+  expiresAt: Timestamp;
+  createdAt: Timestamp;
+  active: boolean;
+  expiryMinutes: number;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  sessionId: string;
+  studentUid: string;
+  studentName: string;
+  collegeId: string;
+  selfieUrl: string;
+  locationLat: number;
+  locationLng: number;
+  markedAt: Timestamp;
+  verified: boolean; // location inside campus radius
+}
+
 // Mock Current User IDs for demo purposes
 export const MOCK_STUDENT_ID = "alex_2026";
 export const MOCK_ADMIN_ID = "admin_user";
@@ -102,6 +133,20 @@ export const dbService = {
   async getAllUsers() {
     const snap = await getDocs(collection(db, 'users'));
     return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+  },
+
+  async getUsersByRole(role: 'student' | 'teacher' | 'admin' | 'club_president') {
+    const q = query(collection(db, 'users'), where('role', '==', role));
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+  },
+
+  async promoteToTeacher(uid: string) {
+    await updateDoc(doc(db, 'users', uid), { role: 'teacher' });
+  },
+
+  async demoteToStudent(uid: string) {
+    await updateDoc(doc(db, 'users', uid), { role: 'student' });
   },
 
   // Events

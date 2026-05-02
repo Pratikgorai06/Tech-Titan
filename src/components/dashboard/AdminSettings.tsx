@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import {
   Settings, MapPin, Building2, Phone, Save, Loader2,
-  CheckCircle2, Navigation, Globe, AlertCircle, BookOpen
+  CheckCircle2, Navigation, Globe, AlertCircle, BookOpen,
+  UserCog, Search, ShieldCheck, GraduationCap, Landmark, Users2, ArrowRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
+import { CLUBS_LIST, assignClubPresident } from '../../lib/clubsDb';
+import { dbService, UserProfile } from '../../lib/db';
+import type { AppRole } from '../../contexts/AuthContext';
 
 interface InstituteSettings {
   name: string;
@@ -37,12 +41,23 @@ const DEFAULT: InstituteSettings = {
 };
 
 export default function AdminSettings() {
+  // ── Institute settings state ──
   const [settings, setSettings]   = useState<InstituteSettings>(DEFAULT);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError]   = useState('');
+
+  // ── Role management state ──
+  const [roleSearch, setRoleSearch] = useState('');
+  const [foundUser, setFoundUser] = useState<UserProfile | null>(null);
+  const [roleSearching, setRoleSearching] = useState(false);
+  const [roleSearchErr, setRoleSearchErr] = useState('');
+  const [selectedRole, setSelectedRole] = useState<AppRole>('student');
+  const [selectedClubId, setSelectedClubId] = useState('');
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleSaved, setRoleSaved] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -59,17 +74,43 @@ export default function AdminSettings() {
   }, []);
 
   const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
+    setSaving(true); setSaved(false);
     try {
       await setDoc(doc(db, 'settings', 'institute'), settings, { merge: true });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      console.error('Save error:', e);
-    } finally {
-      setSaving(false);
+    } catch (e) { console.error('Save error:', e); }
+    finally { setSaving(false); }
+  };
+
+  // Role management handlers
+  const handleRoleSearch = async () => {
+    if (!roleSearch.trim()) return;
+    setRoleSearching(true); setRoleSearchErr(''); setFoundUser(null);
+    const allUsers = await dbService.getAllUsers();
+    const match = allUsers.find(u => u.email.toLowerCase() === roleSearch.trim().toLowerCase());
+    if (match) {
+      setFoundUser(match);
+      setSelectedRole(match.role);
+      setSelectedClubId('');
+    } else {
+      setRoleSearchErr('No user found with that email. They must have signed in at least once.');
     }
+    setRoleSearching(false);
+  };
+
+  const handleRoleAssign = async () => {
+    if (!foundUser) return;
+    setRoleSaving(true); setRoleSaved(false);
+    if (selectedRole === 'club_president' && selectedClubId) {
+      await assignClubPresident(selectedClubId, foundUser.uid, foundUser.email, foundUser.name);
+    } else {
+      await updateDoc(doc(db, 'users', foundUser.uid), { role: selectedRole });
+    }
+    setFoundUser(prev => prev ? { ...prev, role: selectedRole } : null);
+    setRoleSaved(true);
+    setTimeout(() => setRoleSaved(false), 3000);
+    setRoleSaving(false);
   };
 
   const handleUseMyLocation = () => {
@@ -275,6 +316,110 @@ export default function AdminSettings() {
           </div>
         )}
       </div>
+      {/* Role Management */}
+      <div className="bg-white border border-brand-border rounded-3xl p-8 shadow-sm space-y-6">
+        <div className="flex items-center gap-3 border-b border-brand-border pb-5">
+          <div className="w-10 h-10 bg-violet-50 border border-violet-200 rounded-2xl flex items-center justify-center">
+            <UserCog className="w-5 h-5 text-violet-600" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-brand-text-main">Role Management</h3>
+            <p className="text-[11px] text-brand-text-muted font-medium">Assign roles to users by their email address. Roles: Student, Teacher, Club President, Admin.</p>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-text-muted" />
+            <input
+              type="email"
+              placeholder="Enter user's email address..."
+              value={roleSearch}
+              onChange={e => setRoleSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleRoleSearch()}
+              className="w-full bg-slate-50 border border-brand-border rounded-2xl pl-12 pr-5 py-3 text-sm font-medium focus:ring-2 focus:ring-brand-primary/20 outline-none"
+            />
+          </div>
+          <button onClick={handleRoleSearch} disabled={roleSearching}
+            className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+            {roleSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Search
+          </button>
+        </div>
+
+        {roleSearchErr && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {roleSearchErr}
+          </div>
+        )}
+
+        {foundUser && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            className="space-y-5 p-6 bg-slate-50 border border-brand-border rounded-2xl">
+            {/* User info */}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-black">
+                {foundUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-black text-brand-text-main">{foundUser.name}</p>
+                <p className="text-sm text-brand-text-muted">{foundUser.email}</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary">Current: {foundUser.role}</span>
+              </div>
+            </div>
+
+            {/* Role selector */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-black text-brand-text-muted uppercase tracking-widest">Assign Role</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {([
+                  { role: 'student', label: 'Student', icon: Users2, color: 'from-blue-400 to-blue-600' },
+                  { role: 'teacher', label: 'Teacher', icon: GraduationCap, color: 'from-amber-400 to-orange-500' },
+                  { role: 'club_president', label: 'Club President', icon: Landmark, color: 'from-violet-400 to-purple-600' },
+                  { role: 'admin', label: 'Admin', icon: ShieldCheck, color: 'from-red-400 to-red-600' },
+                ] as const).map(r => (
+                  <button key={r.role} onClick={() => setSelectedRole(r.role)}
+                    className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border font-bold text-[12px] transition-all',
+                      selectedRole === r.role
+                        ? 'bg-brand-primary border-brand-primary text-white shadow-lg'
+                        : 'bg-white border-brand-border text-brand-text-muted hover:border-brand-primary/40'
+                    )}>
+                    <r.icon className="w-5 h-5" />
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Club selector (only for club_president) */}
+            {selectedRole === 'club_president' && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-brand-text-muted uppercase tracking-widest">Assign to Club</label>
+                <select value={selectedClubId} onChange={e => setSelectedClubId(e.target.value)}
+                  className="w-full bg-white border border-brand-border rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-brand-primary/20 outline-none">
+                  <option value="">Select a Club / Society</option>
+                  {CLUBS_LIST.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.name} ({c.category})</option>)}
+                </select>
+              </div>
+            )}
+
+            <button onClick={handleRoleAssign} disabled={roleSaving || (selectedRole === 'club_president' && !selectedClubId)}
+              className={cn('w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all',
+                roleSaved
+                  ? 'bg-green-500 text-white'
+                  : 'bg-brand-primary text-white hover:bg-blue-700 shadow-lg disabled:opacity-50'
+              )}>
+              {roleSaving ? <Loader2 className="w-4 h-4 animate-spin" /> :
+               roleSaved ? <CheckCircle2 className="w-4 h-4" /> :
+               <ArrowRight className="w-4 h-4" />}
+              {roleSaved ? 'Role Assigned!' : `Assign ${selectedRole} Role`}
+            </button>
+          </motion.div>
+        )}
+      </div>
+
     </div>
   );
 }

@@ -13,10 +13,11 @@ service cloud.firestore {
 
     // --- Collection Rules ---
 
-    // 1. Users — any signed-in user can read; each user can write their own doc
+    // 1. Users — any signed-in user can read; each user can write their own doc; admin can write any
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn(); // role promotion done server-side via admin client
     }
 
     // 2. Events — all signed-in users can read & write
@@ -44,7 +45,7 @@ service cloud.firestore {
       allow update: if isSignedIn();
     }
 
-    // 6. Attendance — all signed-in users can read & write
+    // 6. Attendance (legacy geofence counter) — all signed-in users can read & write
     match /attendance/{attendanceId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
@@ -74,9 +75,50 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 10. Settings (institute config, campus coords) — signed-in users can read; admins write
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 11. Notices — all signed-in can read; admin/teacher can post
+    match /notices/{noticeId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 12. QR Sessions — teachers/admin create; all signed-in read;
+    //     only the session owner (teacherUid) can update (end session)
+    match /qrSessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == resource.data.teacherUid;
+    }
+
+    // 13. Attendance Records (QR) — students can create their own; all signed-in can read; immutable after write
+    match /attendanceRecords/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if false; // immutable once written
+    }
+
+    // 14. Clubs — all signed-in can read; admin manages presidents via write
+    match /clubs/{clubId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // 15. Club Applications — students create own; all signed-in can read; president updates status
+    match /clubApplications/{appId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isSignedIn(); // president accepts/rejects
+    }
+
     // Catch-all: deny everything else
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+

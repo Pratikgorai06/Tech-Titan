@@ -1,30 +1,22 @@
 import { useState, useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Calendar,
-  UserCheck,
-  MessageSquare,
-  Briefcase,
-  CreditCard,
-  Settings,
-  X,
-  UserCircle,
-  ShieldCheck,
-  LogOut,
-  MessageCircle,
-  BookOpen,
-  ClipboardList
+  LayoutDashboard, Calendar, UserCheck, MessageSquare,
+  Briefcase, CreditCard, Settings, X, UserCircle,
+  ShieldCheck, LogOut, MessageCircle, BookOpen,
+  ClipboardList, QrCode, GraduationCap, Landmark, Users2
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserColor, getInitials } from '../../lib/chatDb';
 import { Link, useLocation } from 'react-router-dom';
-import { dbService, MOCK_STUDENT_ID, MOCK_ADMIN_ID, UserProfile } from '../../lib/db';
+import { dbService, UserProfile } from '../../lib/db';
+import type { AppRole } from '../../contexts/AuthContext';
 
 const studentNav = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'attendance', label: 'Attendance', icon: UserCheck },
+  { id: 'clubs', label: 'Clubs & Societies', icon: Users2, badge: 'NEW' },
   { id: 'events', label: 'Events', icon: Calendar },
   { id: 'notices', label: 'Notice Board', icon: ClipboardList, badge: 'NEW' },
   { id: 'notes', label: 'Notes', icon: BookOpen, badge: 'NEW' },
@@ -32,6 +24,18 @@ const studentNav = [
   { id: 'complaints', label: 'Complaints', icon: MessageSquare },
   { id: 'career', label: 'Career Hub', icon: Briefcase },
   { id: 'fees', label: 'Fees', icon: CreditCard },
+];
+
+const clubPresidentNav = [
+  { id: 'dashboard', label: 'Club Dashboard', icon: Landmark },
+  { id: 'settings', label: 'Settings', icon: Settings },
+];
+
+const teacherNav = [
+  { id: 'dashboard', label: 'Teacher Panel', icon: GraduationCap },
+  { id: 'attendance', label: 'QR Attendance', icon: QrCode, badge: 'NEW' },
+  { id: 'chat', label: 'Campus Chat', icon: MessageCircle },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 const adminNav = [
@@ -48,23 +52,21 @@ const adminNav = [
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  role: 'student' | 'admin';
+  role: AppRole;
 }
 
 export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
   const { user: authUser, signOut } = useAuth();
   const location = useLocation();
-  const currentNav = role === 'admin' ? adminNav : studentNav;
+  const currentNav = role === 'admin' ? adminNav : role === 'teacher' ? teacherNav : role === 'club_president' ? clubPresidentNav : studentNav;
 
   const [dbUser, setDbUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    const currentId = role === 'admin' ? MOCK_ADMIN_ID : MOCK_STUDENT_ID;
-    const unsubscribe = dbService.subscribeUser(currentId, (u) => {
-      setDbUser(u);
-    });
+    if (!authUser) return;
+    const unsubscribe = dbService.subscribeUser(authUser.uid, (u) => setDbUser(u));
     return () => unsubscribe();
-  }, [role]);
+  }, [authUser]);
 
   const displayName = dbUser?.name || authUser?.displayName || 'Campus User';
   const displayEmail = authUser?.email || '';
@@ -72,14 +74,31 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
   const avatarColor = getUserColor(authUser?.uid || displayEmail);
   const initials = getInitials(displayName);
 
+  const roleBadgeStyle =
+    role === 'admin'
+      ? 'bg-red-50 text-brand-emergency border border-red-100'
+      : role === 'teacher'
+      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+      : role === 'club_president'
+      ? 'bg-violet-50 text-violet-700 border border-violet-200'
+      : 'bg-blue-50 text-brand-primary border border-blue-100';
+
+  const roleBadgeIcon =
+    role === 'admin' ? <ShieldCheck className="w-3.5 h-3.5" /> :
+    role === 'teacher' ? <GraduationCap className="w-3.5 h-3.5" /> :
+    role === 'club_president' ? <Landmark className="w-3.5 h-3.5" /> :
+    <UserCheck className="w-3.5 h-3.5" />;
+
+  const roleBadgeLabel =
+    role === 'admin' ? 'Admin Mode' :
+    role === 'teacher' ? 'Teacher Mode' :
+    role === 'club_president' ? 'Club President' :
+    'Student Mode';
+
   return (
     <>
-      {/* Mobile backdrop */}
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
       )}
 
       <aside className={cn(
@@ -87,7 +106,6 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <div className="flex flex-col h-full py-6 px-4">
-          {/* Logo */}
           <div className="px-3 mb-8 flex items-center justify-between">
             <div className="text-xl font-black tracking-tighter text-brand-primary flex items-center gap-2">
               CAMPUS MATE
@@ -101,14 +119,10 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
           <div className="px-3 mb-5">
             <div className={cn(
               'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest',
-              role === 'admin'
-                ? 'bg-red-50 text-brand-emergency border border-red-100'
-                : 'bg-blue-50 text-brand-primary border border-blue-100'
+              roleBadgeStyle
             )}>
-              {role === 'admin'
-                ? <ShieldCheck className="w-3.5 h-3.5" />
-                : <UserCheck className="w-3.5 h-3.5" />}
-              {role === 'admin' ? 'Admin Mode' : 'Student Mode'}
+              {roleBadgeIcon}
+              {roleBadgeLabel}
             </div>
           </div>
 
@@ -157,37 +171,30 @@ export default function Sidebar({ isOpen, onClose, role }: SidebarProps) {
 
           {/* User section */}
           <div className="pt-4 border-t border-brand-border flex-shrink-0 mt-auto">
-            {/* User info card */}
             <div className="flex items-center gap-3 px-3 py-3 rounded-xl mb-1">
               {photoURL ? (
-                <img
-                  src={photoURL}
-                  alt={displayName}
-                  className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-brand-border"
-                  referrerPolicy="no-referrer"
-                />
+                <img src={photoURL} alt={displayName} className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-brand-border" referrerPolicy="no-referrer" />
               ) : (
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                  style={{ backgroundColor: avatarColor }}
-                >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: avatarColor }}>
                   {initials}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-brand-text-main truncate">{dbUser?.name || authUser?.displayName || 'Student'}</p>
+                <p className="text-[13px] font-bold text-brand-text-main truncate">{displayName}</p>
                 <p className="text-[10px] text-brand-text-muted truncate">{displayEmail}</p>
               </div>
             </div>
 
-            <Link
-              to={`/${role}/settings`}
-              onClick={onClose}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-text-muted hover:bg-slate-50 transition-all font-bold text-[13px]"
-            >
-              <Settings className="w-4 h-4" />
-              <span>Settings</span>
-            </Link>
+            {role !== 'teacher' && (
+              <Link
+                to={`/${role}/settings`}
+                onClick={onClose}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-text-muted hover:bg-slate-50 transition-all font-bold text-[13px]"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Settings</span>
+              </Link>
+            )}
 
             <button
               onClick={signOut}

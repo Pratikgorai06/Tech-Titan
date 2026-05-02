@@ -18,6 +18,11 @@ import AdminSettings from './components/dashboard/AdminSettings';
 import AdminNotice from './components/dashboard/AdminNotice';
 import NotesView from './components/dashboard/NotesView';
 import NoticeView from './components/dashboard/NoticeView';
+import TeacherDashboard from './components/dashboard/TeacherDashboard';
+import TeacherQrAttendance from './components/dashboard/TeacherQrAttendance';
+import TeacherSessionView from './components/dashboard/TeacherSessionView';
+import ClubsView from './components/dashboard/ClubsView';
+import ClubPresidentDashboard from './components/dashboard/ClubPresidentDashboard';
 import Chatbot from './components/chat/Chatbot';
 import CampusChat from './components/chat/CampusChat';
 import LoginPage from './components/auth/LoginPage';
@@ -29,7 +34,6 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
 
-  // Close sidebar on Escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsSidebarOpen(false);
@@ -38,7 +42,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // Close sidebar on route change automatically
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
@@ -64,7 +67,6 @@ export default function App() {
 
   const isChat = location.pathname.includes('/chat');
 
-  // Helper to format header text
   const getHeaderText = () => {
     const parts = location.pathname.split('/').filter(Boolean);
     if (parts.length < 2) return 'Dashboard';
@@ -73,19 +75,11 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-brand-bg font-sans text-brand-text-main">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        role={role}
-      />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} role={role} />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Priority Alert Banner */}
-        <EmergencyBanner
-          message="URGENT: Campus main library will be closed for maintenance until tomorrow morning."
-        />
+        <EmergencyBanner message="URGENT: Campus main library will be closed for maintenance until tomorrow morning." />
 
-        {/* Mobile top header */}
         <header className="lg:hidden h-16 flex items-center px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
           <button
             onClick={() => setIsSidebarOpen(true)}
@@ -93,19 +87,15 @@ export default function App() {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <h1 className="ml-2 font-bold text-lg text-slate-900 capitalize">
-            {getHeaderText()}
-          </h1>
+          <h1 className="ml-2 font-bold text-lg text-slate-900 capitalize">{getHeaderText()}</h1>
         </header>
 
         {isChat ? (
           <div className="flex-1 min-h-0 flex flex-col p-3 lg:p-4">
             <Routes>
-               {role === 'admin' ? (
-                 <Route path="/admin/chat" element={<CampusChat role={role} />} />
-               ) : (
-                 <Route path="/student/chat" element={<CampusChat role={role} />} />
-               )}
+              {role === 'admin' && <Route path="/admin/chat" element={<CampusChat role={role} />} />}
+              {role === 'teacher' && <Route path="/teacher/chat" element={<CampusChat role={'student'} />} />}
+              {role === 'student' && <Route path="/student/chat" element={<CampusChat role={role} />} />}
             </Routes>
           </div>
         ) : (
@@ -120,8 +110,21 @@ export default function App() {
                   <Route path="/admin/career" element={<AdminCareer />} />
                   <Route path="/admin/notice" element={<AdminNotice />} />
                   <Route path="/admin/settings" element={<AdminSettings />} />
-                  {/* Default redirect for Admin */}
                   <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+                </>
+              ) : role === 'teacher' ? (
+                <>
+                  <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+                  <Route path="/teacher/attendance" element={<TeacherQrAttendance />} />
+                  <Route path="/teacher/session/:sessionId" element={<TeacherSessionView />} />
+                  <Route path="/teacher/settings" element={<StudentSettings />} />
+                  <Route path="*" element={<Navigate to="/teacher/dashboard" replace />} />
+                </>
+              ) : role === 'club_president' ? (
+                <>
+                  <Route path="/club_president/dashboard" element={<ClubPresidentDashboard />} />
+                  <Route path="/club_president/settings" element={<StudentSettings />} />
+                  <Route path="*" element={<Navigate to="/club_president/dashboard" replace />} />
                 </>
               ) : (
                 <>
@@ -133,8 +136,8 @@ export default function App() {
                   <Route path="/student/career" element={<CareerHubView />} />
                   <Route path="/student/notes" element={<NotesView />} />
                   <Route path="/student/notices" element={<NoticeView />} />
+                  <Route path="/student/clubs" element={<ClubsView />} />
                   <Route path="/student/settings" element={<StudentSettings />} />
-                  {/* Default redirect for Student */}
                   <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
                 </>
               )}
@@ -143,7 +146,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Floating AI chatbot widget */}
       <Chatbot />
     </div>
   );
