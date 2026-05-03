@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin, UserCheck, Loader2, QrCode, Camera, CheckCircle2,
-  XCircle, AlertCircle, ScanLine, TrendingUp
+  XCircle, AlertCircle, ScanLine, ScanFace, Shield
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { dbService, UserProfile } from '../../lib/db';
@@ -12,6 +12,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { cn } from '../../lib/utils';
 import { Html5Qrcode } from 'html5-qrcode';
+import { matchDescriptors, getDeviceFingerprint } from '../../lib/faceService';
+import LivenessChallenge from '../attendance/LivenessChallenge';
 
 const RADIUS_THRESHOLD = 0.5;
 
@@ -27,7 +29,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type ScanStep = 'idle' | 'scanning' | 'location' | 'selfie' | 'submitting' | 'done' | 'error';
+type ScanStep = 'idle' | 'scanning' | 'location' | 'liveness' | 'verifying' | 'submitting' | 'done' | 'error';
 
 export default function AttendanceView() {
   const { user } = useAuth();
@@ -45,8 +47,12 @@ export default function AttendanceView() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
 
+  // ── Face verification state ──
+  const [faceVerified, setFaceVerified] = useState(false);
+  const [livenessVerified, setLivenessVerified] = useState(false);
+  const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const selfieInputRef = useRef<HTMLInputElement>(null);
   const dbUserUnsubRef = useRef<(() => void) | null>(null);
 
   // ── Load campus coords + subscribe user (with cleanup) ──
@@ -70,8 +76,6 @@ export default function AttendanceView() {
     };
   }, [user]);
 
-
-
   // ── Cleanup scanner on unmount ──
   useEffect(() => {
     return () => {
@@ -82,13 +86,10 @@ export default function AttendanceView() {
     };
   }, []);
 
-
-
   // ── QR: stop any running scanner ──
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
       try { await scannerRef.current.stop(); } catch { /* ignore */ }
-      // FIX: null after stopping
       scannerRef.current = null;
     }
   }, []);
@@ -99,11 +100,10 @@ export default function AttendanceView() {
     setErrorMsg('');
     setStep('scanning');
 
-    // Wait one frame for the #qr-reader div to mount
     await new Promise((r) => setTimeout(r, 300));
 
     try {
-      await stopScanner(); // ensure no previous scanner running
+      await stopScanner();
       const scanner = new Html5Qrcode('qr-reader');
       scannerRef.current = scanner;
 
@@ -123,7 +123,7 @@ export default function AttendanceView() {
             setStep('error');
           }
         },
-        () => {} // frame error — ignore
+        () => {}
       );
     } catch (e: any) {
       setErrorMsg(`Camera error: ${e.message || 'Could not access camera.'}`);
@@ -135,53 +135,93 @@ export default function AttendanceView() {
   // ── QR: get GPS location ──
   const getLocationForAttendance = () => {
     if (!navigator.geolocation) {
-      // No GPS API — mark as denied
       setUserLocation({ lat: 0, lng: 0 });
-      setStep('selfie');
+      setStep('liveness');
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setStep('selfie');
+        setStep('liveness');
       },
       () => {
-        // Permission denied → (0,0) sentinel; attendanceDb will flag it
         setUserLocation({ lat: 0, lng: 0 });
-        setStep('selfie');
+        setStep('liveness');
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
 
-  // ── QR: selfie captured ──
-  const handleSelfieCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setSelfieDataUrl(ev.target?.result as string);
-    reader.readAsDataURL(file);
+  // ── Liveness challenge completed ──
+  const handleLivenessComplete = async (result: {
+    passed: boolean;
+    selfieDataUrl: string;
+    descriptor: Float32Array | null;
+  }) => {
+    if (!result.passed) {
+      setErrorMsg('Liveness verification failed. Please try again.');
+      setStep('error');
+      return;
+    }
+
+    setLivenessVerified(true);
+    setSelfieDataUrl(result.selfieDataUrl);
+    setFaceDescriptor(result.descriptor);
+
+    // ── Face matching ──
+    setStep('verifying');
+
+    if (result.descriptor && dbUser?.faceDescriptors?.length) {
+      const matchResult = matchDescriptors(dbUser.faceDescriptors, result.descriptor);
+      setFaceVerified(matchResult.match);
+
+      if (!matchResult.match) {
+        setErrorMsg(
+          `⚠️ Face verification failed (distance: ${matchResult.distance.toFixed(2)}). ` +
+          'Your face does not match the registered profile. Attendance will be saved but flagged.'
+        );
+      }
+    } else {
+      // No face data registered — skip face matching, just note it
+      setFaceVerified(false);
+    }
+
+    // Auto-submit after verification
+    await submitAttendance(result.selfieDataUrl, result.descriptor);
+  };
+
+  const handleLivenessCancel = () => {
+    resetQr();
   };
 
   // ── QR: submit attendance ──
-  const submitAttendance = async () => {
+  const submitAttendance = async (selfie?: string, descriptor?: Float32Array | null) => {
     if (!user || !scanResult || !userLocation) return;
     setStep('submitting');
 
-    // FIX: use campusCoords already in state — avoids a second Firestore read
     const campLat = campusCoords?.lat ?? 0;
     const campLng = campusCoords?.lng ?? 0;
+
+    // Face verification
+    let faceMatch = false;
+    if (descriptor && dbUser?.faceDescriptors?.length) {
+      const matchResult = matchDescriptors(dbUser.faceDescriptors, descriptor);
+      faceMatch = matchResult.match;
+    }
 
     const result = await markQrAttendance({
       sessionId: scanResult.sessionId,
       studentUid: user.uid,
       studentName: user.displayName || dbUser?.name || 'Student',
       collegeId: collegeId.trim(),
-      selfieUrl: selfieDataUrl,
+      selfieUrl: selfie || selfieDataUrl,
       locationLat: userLocation.lat,
       locationLng: userLocation.lng,
       campusLat: campLat,
       campusLng: campLng,
+      faceVerified: faceMatch,
+      livenessVerified: true,
+      deviceId: getDeviceFingerprint(),
     });
 
     if (result.success) {
@@ -202,14 +242,32 @@ export default function AttendanceView() {
     setScanResult(null);
     setSelfieDataUrl('');
     setUserLocation(null);
+    setFaceVerified(false);
+    setLivenessVerified(false);
+    setFaceDescriptor(null);
   };
+
+  const hasFaceData = dbUser?.faceRegistered && (dbUser?.faceDescriptors?.length ?? 0) > 0;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       <header>
         <h2 className="text-3xl font-black tracking-tight text-brand-text-main">Attendance</h2>
-        <p className="text-brand-text-muted mt-1 text-sm">Mark your attendance using QR scan or geofence.</p>
+        <p className="text-brand-text-muted mt-1 text-sm">Mark your attendance using QR scan with face & liveness verification.</p>
       </header>
+
+      {/* Face registration reminder */}
+      {!hasFaceData && step === 'idle' && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+          <ScanFace className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-amber-800">Face ID not registered</p>
+            <p className="text-[11px] text-amber-600 mt-0.5">
+              Register your face in <strong>Face ID</strong> (sidebar) for verified attendance. Without it, your records will be flagged.
+            </p>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -260,10 +318,25 @@ export default function AttendanceView() {
                     <ScanLine className="w-5 h-5" />
                     Open Camera &amp; Scan QR
                   </button>
+
+                  {/* How it works — updated */}
+                  <div className="grid grid-cols-4 gap-2 pt-2">
+                    {[
+                      { icon: QrCode, label: 'Scan QR' },
+                      { icon: MapPin, label: 'GPS Check' },
+                      { icon: Shield, label: 'Liveness' },
+                      { icon: ScanFace, label: 'Face Match' },
+                    ].map((s) => (
+                      <div key={s.label} className="flex flex-col items-center gap-1.5 p-2 bg-slate-50 rounded-xl">
+                        <s.icon className="w-4 h-4 text-brand-text-muted" />
+                        <span className="text-[9px] font-bold text-brand-text-muted uppercase tracking-wider">{s.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Scanning — FIX: div only rendered when step==='scanning' */}
+              {/* Scanning */}
               {step === 'scanning' && (
                 <div className="bg-white border border-brand-border rounded-3xl p-6 space-y-4">
                   <div className="flex items-center justify-between">
@@ -272,7 +345,6 @@ export default function AttendanceView() {
                       Cancel
                     </button>
                   </div>
-                  {/* FIX: only rendered during scanning step — Html5Qrcode mounts here */}
                   <div id="qr-reader" className="w-full rounded-2xl overflow-hidden" />
                   <p className="text-xs text-center text-brand-text-muted">
                     Point your camera at the QR code on the board/screen
@@ -292,66 +364,31 @@ export default function AttendanceView() {
                 </div>
               )}
 
-              {/* Selfie capture */}
-              {step === 'selfie' && (
-                <div className="bg-white border border-brand-border rounded-3xl p-8 space-y-6">
-                  <div className="text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center mx-auto mb-4">
-                      <Camera className="w-7 h-7 text-purple-600" />
-                    </div>
-                    <h3 className="font-black text-brand-text-main">Take a Selfie</h3>
-                    <p className="text-sm text-brand-text-muted mt-1">Photo verification confirms your physical presence.</p>
-                  </div>
+              {/* Liveness Challenge */}
+              {step === 'liveness' && (
+                <div className="space-y-4">
                   {userLocation && userLocation.lat === 0 && userLocation.lng === 0 && (
                     <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-[12px] text-amber-700">
                       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                       Location access denied — your attendance will be saved but flagged for review.
                     </div>
                   )}
-                  {selfieDataUrl ? (
-                    <div className="space-y-4">
-                      <img src={selfieDataUrl} alt="Selfie preview" className="w-48 h-48 object-cover rounded-2xl mx-auto border-2 border-brand-border" />
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => { setSelfieDataUrl(''); selfieInputRef.current?.click(); }}
-                          className="flex-1 py-3 border border-brand-border rounded-xl text-sm font-bold text-brand-text-muted hover:bg-slate-50 transition-colors"
-                        >
-                          Retake
-                        </button>
-                        <button
-                          onClick={submitAttendance}
-                          className="flex-1 py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          Submit
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <input
-                        ref={selfieInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="user"
-                        onChange={handleSelfieCapture}
-                        className="hidden"
-                      />
-                      <button
-                        onClick={() => selfieInputRef.current?.click()}
-                        className="w-full py-4 bg-purple-600 text-white font-black rounded-2xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3"
-                      >
-                        <Camera className="w-5 h-5" />
-                        Open Camera
-                      </button>
-                      <button
-                        onClick={submitAttendance}
-                        className="w-full py-3 border border-brand-border rounded-2xl text-sm font-bold text-brand-text-muted hover:bg-slate-50 transition-colors"
-                      >
-                        Skip Photo &amp; Submit
-                      </button>
-                    </div>
-                  )}
+                  <LivenessChallenge
+                    onComplete={handleLivenessComplete}
+                    onCancel={handleLivenessCancel}
+                    challengeCount={2}
+                    timeoutSeconds={15}
+                  />
+                </div>
+              )}
+
+              {/* Verifying face */}
+              {step === 'verifying' && (
+                <div className="bg-white border border-brand-border rounded-3xl p-12 flex flex-col items-center gap-4 text-center">
+                  <ScanFace className="w-10 h-10 text-brand-primary animate-pulse" />
+                  <h3 className="font-black text-brand-text-main">Verifying Face...</h3>
+                  <p className="text-sm text-brand-text-muted">Comparing your face with registered data.</p>
+                  <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                 </div>
               )}
 
@@ -360,17 +397,34 @@ export default function AttendanceView() {
                 <div className="bg-white border border-brand-border rounded-3xl p-12 flex flex-col items-center gap-4 text-center">
                   <Loader2 className="w-10 h-10 animate-spin text-brand-primary" />
                   <h3 className="font-black text-brand-text-main">Marking Attendance...</h3>
-                  <p className="text-sm text-brand-text-muted">Verifying location and saving your record.</p>
+                  <p className="text-sm text-brand-text-muted">Saving your verified attendance record.</p>
                 </div>
               )}
 
               {/* Success */}
               {step === 'done' && (
-                <div className="bg-white border border-green-200 rounded-3xl p-12 flex flex-col items-center gap-4 text-center">
+                <div className="bg-white border border-green-200 rounded-3xl p-10 flex flex-col items-center gap-4 text-center">
                   <div className="w-20 h-20 rounded-full bg-green-50 border-4 border-green-200 flex items-center justify-center">
                     <CheckCircle2 className="w-10 h-10 text-green-600" />
                   </div>
                   <h3 className="text-2xl font-black text-brand-text-main">Attendance Marked!</h3>
+
+                  {/* Verification badges */}
+                  <div className="flex flex-wrap justify-center gap-2 mt-1">
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-[10px] font-black text-green-700 uppercase">
+                      <Shield className="w-3 h-3" /> Liveness ✓
+                    </span>
+                    {faceVerified ? (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-[10px] font-black text-green-700 uppercase">
+                        <ScanFace className="w-3 h-3" /> Face Matched ✓
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-[10px] font-black text-amber-700 uppercase">
+                        <ScanFace className="w-3 h-3" /> {hasFaceData ? 'Face Mismatch' : 'No Face Data'}
+                      </span>
+                    )}
+                  </div>
+
                   {errorMsg && (
                     <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 text-left max-w-sm">
                       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -429,9 +483,17 @@ export default function AttendanceView() {
                           <p className="text-[12px] font-bold text-brand-text-main truncate">
                             {r.sessionId.slice(0, 10)}…
                           </p>
-                          <p className="text-[10px] text-brand-text-muted">
-                            {r.markedAt.toDate().toLocaleDateString()} · {r.verified ? '✅ Verified' : '⚠️ Flagged'}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-brand-text-muted">
+                              {r.markedAt.toDate().toLocaleDateString()}
+                            </span>
+                            {r.faceVerified && (
+                              <span className="text-[8px] font-bold text-green-600 bg-green-50 px-1 py-0.5 rounded">Face ✓</span>
+                            )}
+                            {r.livenessVerified && (
+                              <span className="text-[8px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded">Live ✓</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}

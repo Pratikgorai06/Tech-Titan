@@ -28,10 +28,12 @@ import Chatbot from './components/chat/Chatbot';
 import CampusChat from './components/chat/CampusChat';
 import LoginPage from './components/auth/LoginPage';
 import StudentSettings from './components/dashboard/StudentSettings';
+import FaceRegistration from './components/dashboard/FaceRegistration';
+import ProfileCompletion from './components/auth/ProfileCompletion';
 import { useAuth } from './contexts/AuthContext';
 
 export default function App() {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, isLoading, profileComplete, refreshProfile } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
 
@@ -64,6 +66,11 @@ export default function App() {
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
+  }
+
+  // Gate: force profile completion for new students / club presidents
+  if (!profileComplete) {
+    return <ProfileCompletion onComplete={refreshProfile} />;
   }
 
   const isChat = location.pathname.includes('/chat');
@@ -135,6 +142,7 @@ export default function App() {
                 <>
                   <Route path="/student/dashboard" element={<DashboardView />} />
                   <Route path="/student/attendance" element={<AttendanceView />} />
+                  <Route path="/student/face-registration" element={<FaceRegistration />} />
                   <Route path="/student/events" element={<EventsView />} />
                   <Route path="/student/complaints" element={<ComplaintsView />} />
                   <Route path="/student/fees" element={<FeesView />} />

@@ -62,7 +62,7 @@ export default function StudentSettings() {
     setSaving(true);
     setSaved(false);
     try {
-      await setDoc(doc(db, 'users', authUser?.uid || ''), userProfile, { merge: true });
+      await setDoc(doc(db, 'users', authUser?.uid || ''), { ...userProfile, profileComplete: true }, { merge: true });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {

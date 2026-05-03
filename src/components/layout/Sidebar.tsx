@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Calendar, UserCheck, MessageSquare,
   Briefcase, CreditCard, Settings, X, UserCircle,
   ShieldCheck, LogOut, MessageCircle, BookOpen,
-  ClipboardList, QrCode, GraduationCap, Landmark, Users2
+  ClipboardList, QrCode, GraduationCap, Landmark, Users2,
+  ScanFace
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
@@ -16,6 +17,7 @@ import type { AppRole } from '../../contexts/AuthContext';
 const studentNav = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'attendance', label: 'Attendance', icon: UserCheck },
+  { id: 'face-registration', label: 'Face ID', icon: ScanFace, badge: 'NEW' },
   { id: 'clubs', label: 'Clubs & Societies', icon: Users2, badge: 'NEW' },
   { id: 'events', label: 'Events', icon: Calendar },
   { id: 'notices', label: 'Notice Board', icon: ClipboardList, badge: 'NEW' },

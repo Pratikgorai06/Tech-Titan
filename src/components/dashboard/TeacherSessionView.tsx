@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, Users, MapPin, Camera, Clock,
-  CheckCircle2, XCircle, Loader2, QrCode
+  CheckCircle2, XCircle, Loader2, QrCode, ScanFace, Shield
 } from 'lucide-react';
 import { getQrSession, getSessionAttendance } from '../../lib/attendanceDb';
 import type { QrSession, AttendanceRecord } from '../../lib/db';
@@ -51,6 +51,8 @@ export default function TeacherSessionView() {
 
   const verified = records.filter((r) => r.verified).length;
   const flagged = records.length - verified;
+  const faceVerifiedCount = records.filter((r) => r.faceVerified).length;
+  const livenessCount = records.filter((r) => r.livenessVerified).length;
   const isActive = session.active && session.expiresAt.toMillis() > Date.now();
 
   return (
@@ -88,19 +90,21 @@ export default function TeacherSessionView() {
       </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
           { label: 'Total Present', value: records.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-100' },
-          { label: 'Location Verified', value: verified, icon: MapPin, color: 'text-green-600', bg: 'bg-green-50 border-green-100' },
+          { label: 'GPS Verified', value: verified, icon: MapPin, color: 'text-green-600', bg: 'bg-green-50 border-green-100' },
+          { label: 'Face Verified', value: faceVerifiedCount, icon: ScanFace, color: 'text-purple-600', bg: 'bg-purple-50 border-purple-100' },
+          { label: 'Liveness', value: livenessCount, icon: Shield, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
           { label: 'Flagged', value: flagged, icon: XCircle, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-100' },
         ].map((s) => (
-          <div key={s.label} className="bg-white border border-brand-border rounded-2xl p-6 flex items-center gap-4">
-            <div className={cn('w-12 h-12 rounded-2xl border flex items-center justify-center flex-shrink-0', s.bg)}>
-              <s.icon className={cn('w-5 h-5', s.color)} />
+          <div key={s.label} className="bg-white border border-brand-border rounded-2xl p-5 flex items-center gap-3">
+            <div className={cn('w-10 h-10 rounded-2xl border flex items-center justify-center flex-shrink-0', s.bg)}>
+              <s.icon className={cn('w-4 h-4', s.color)} />
             </div>
             <div>
-              <p className="text-2xl font-black text-brand-text-main tabular-nums">{s.value}</p>
-              <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">{s.label}</p>
+              <p className="text-xl font-black text-brand-text-main tabular-nums">{s.value}</p>
+              <p className="text-[9px] font-bold text-brand-text-muted uppercase tracking-wider">{s.label}</p>
             </div>
           </div>
         ))}
@@ -127,6 +131,8 @@ export default function TeacherSessionView() {
                   <th className="px-6 py-4">College ID</th>
                   <th className="px-6 py-4">Time</th>
                   <th className="px-6 py-4">Location</th>
+                  <th className="px-6 py-4">Face</th>
+                  <th className="px-6 py-4">Liveness</th>
                   <th className="px-6 py-4">Selfie</th>
                 </tr>
               </thead>
@@ -172,6 +178,26 @@ export default function TeacherSessionView() {
                           <XCircle className="w-3 h-3 text-amber-600" />
                           <span className="text-[10px] font-black text-amber-700 uppercase">Flagged</span>
                         </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {r.faceVerified ? (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 border border-purple-200 rounded-full w-fit">
+                          <ScanFace className="w-3 h-3 text-purple-600" />
+                          <span className="text-[9px] font-black text-purple-700 uppercase">Match</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-brand-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {r.livenessVerified ? (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-full w-fit">
+                          <Shield className="w-3 h-3 text-indigo-600" />
+                          <span className="text-[9px] font-black text-indigo-700 uppercase">Pass</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-brand-text-muted">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">

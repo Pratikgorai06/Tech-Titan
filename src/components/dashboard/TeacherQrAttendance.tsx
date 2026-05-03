@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   QrCode, X, Users, Clock, CheckCircle2, XCircle,
-  Loader2, Copy, RefreshCw, StopCircle, MapPin, Camera
+  Loader2, Copy, RefreshCw, StopCircle, MapPin, Camera,
+  Navigation
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -10,8 +11,6 @@ import {
   listenToSessionAttendance
 } from '../../lib/attendanceDb';
 import type { QrSession, AttendanceRecord } from '../../lib/db';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
 import { cn } from '../../lib/utils';
 import QRCode from 'qrcode';
 
@@ -38,18 +37,43 @@ export default function TeacherQrAttendance() {
   const [creating, setCreating] = useState(false);
   const [ending, setEnding] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [campusCoords, setCampusCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [teacherCoords, setTeacherCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState('');
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionUnsubRef = useRef<(() => void) | null>(null);
   const attendeesUnsubRef = useRef<(() => void) | null>(null);
 
-  // Load campus coords
-  useEffect(() => {
-    getDoc(doc(db, 'settings', 'institute')).then((snap) => {
-      if (snap.exists() && snap.data().latitude && snap.data().longitude) {
-        setCampusCoords({ lat: parseFloat(snap.data().latitude), lng: parseFloat(snap.data().longitude) });
+  // Request teacher's live GPS location
+  const requestTeacherLocation = useCallback((): Promise<{ lat: number; lng: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        setLocationError('Geolocation is not supported by your browser.');
+        resolve(null);
+        return;
       }
+      setGettingLocation(true);
+      setLocationError('');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setTeacherCoords(coords);
+          setGettingLocation(false);
+          resolve(coords);
+        },
+        (err) => {
+          setGettingLocation(false);
+          const msg = err.code === 1
+            ? 'Location permission denied. Please enable location access in your browser to generate QR codes.'
+            : err.code === 2
+            ? 'Location unavailable. Please check your device GPS settings.'
+            : 'Location request timed out. Please try again.';
+          setLocationError(msg);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
     });
   }, []);
 
@@ -77,6 +101,11 @@ export default function TeacherQrAttendance() {
 
   const generateQr = async () => {
     if (!user || !subject.trim()) return;
+
+    // 1. Get teacher's live GPS first
+    const coords = await requestTeacherLocation();
+    if (!coords) return; // location denied/failed — error already shown
+
     setCreating(true);
     try {
       const sessionData = {
@@ -85,8 +114,8 @@ export default function TeacherQrAttendance() {
         subject: subject.trim(),
         branch,
         year,
-        campusLat: campusCoords?.lat ?? 0,
-        campusLng: campusCoords?.lng ?? 0,
+        campusLat: coords.lat,
+        campusLng: coords.lng,
         expiryMinutes,
       };
       const sessionId = await createQrSession(sessionData);
@@ -155,6 +184,14 @@ export default function TeacherQrAttendance() {
             <p className="text-xs font-bold text-brand-text-muted uppercase tracking-widest mb-1">Live Session</p>
             <h2 className="text-2xl font-black text-brand-text-main">{activeSession.subject}</h2>
             <p className="text-sm text-brand-text-muted">{activeSession.branch} · Year {activeSession.year}</p>
+            {teacherCoords && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Navigation className="w-3 h-3 text-green-600" />
+                <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                  📍 Location locked: {teacherCoords.lat.toFixed(5)}, {teacherCoords.lng.toFixed(5)}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex gap-3">
             <button
@@ -380,25 +417,45 @@ export default function TeacherQrAttendance() {
           <p className="text-[11px] text-brand-text-muted">QR becomes invalid after this time. Students must scan before it expires.</p>
         </div>
 
-        {/* Campus coords warning */}
-        {!campusCoords && (
-          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
-            <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-[12px] text-amber-700 font-medium">
-              Campus coordinates not configured. Student location verification will be skipped.
-              Ask your admin to set campus coordinates in System Config.
-            </p>
+        {/* Location info */}
+        <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+          <Navigation className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-blue-700 font-medium">
+            Your live GPS location will be captured when you generate the QR code.
+            Students must be within 500m of your location to get verified attendance.
+          </p>
+        </div>
+
+        {/* Location error */}
+        {locationError && (
+          <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+            <MapPin className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[12px] text-red-600 font-medium">{locationError}</p>
           </div>
         )}
 
         {/* Generate Button */}
         <button
           onClick={generateQr}
-          disabled={creating || !subject.trim()}
+          disabled={creating || gettingLocation || !subject.trim()}
           className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black rounded-2xl shadow-lg shadow-amber-200 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0 flex items-center justify-center gap-3"
         >
-          {creating ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
-          {creating ? 'Generating…' : 'Generate QR Code'}
+          {gettingLocation ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Getting your location…
+            </>
+          ) : creating ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Generating…
+            </>
+          ) : (
+            <>
+              <QrCode className="w-5 h-5" />
+              Generate QR Code
+            </>
+          )}
         </button>
       </div>
 

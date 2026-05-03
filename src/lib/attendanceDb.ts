@@ -91,6 +91,9 @@ export async function markQrAttendance(
   record: Omit<AttendanceRecord, 'id' | 'markedAt' | 'verified'> & {
     campusLat: number;
     campusLng: number;
+    faceVerified?: boolean;
+    livenessVerified?: boolean;
+    deviceId?: string;
   }
 ): Promise<{ success: boolean; error?: string }> {
   // 1. Validate session is still active
@@ -125,6 +128,9 @@ export async function markQrAttendance(
     locationLng: record.locationLng,
     markedAt: Timestamp.now(),
     verified,
+    faceVerified: record.faceVerified ?? false,
+    livenessVerified: record.livenessVerified ?? false,
+    deviceId: record.deviceId ?? '',
   });
 
   // 5. Increment student totalAttendance

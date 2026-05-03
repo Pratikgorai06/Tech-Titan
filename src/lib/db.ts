@@ -29,6 +29,9 @@ export interface UserProfile {
   batch?: string;
   section?: string;
   collegeId?: string; // roll number / enrollment number
+  faceDescriptors?: number[][];  // 1–3 stored 128D face descriptors
+  facePhotos?: string[];         // 1–3 base64 face thumbnails
+  faceRegistered?: boolean;      // quick flag
 }
 
 export interface CampusEvent {
@@ -110,6 +113,9 @@ export interface AttendanceRecord {
   locationLng: number;
   markedAt: Timestamp;
   verified: boolean; // location inside campus radius
+  faceVerified?: boolean;     // face matched stored descriptors
+  livenessVerified?: boolean; // passed liveness challenge
+  deviceId?: string;          // browser fingerprint
 }
 
 // @deprecated — These mock IDs are no longer used; all components now use the real auth uid.

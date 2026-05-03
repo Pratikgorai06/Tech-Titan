@@ -20,6 +20,8 @@ interface AuthContextValue {
   user: User | null;
   role: AppRole;
   isLoading: boolean;
+  profileComplete: boolean;
+  refreshProfile: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   authError: string;
@@ -31,6 +33,8 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   role: 'student',
   isLoading: true,
+  profileComplete: false,
+  refreshProfile: async () => {},
   signInWithGoogle: async () => {},
   signOut: async () => {},
   authError: '',
@@ -39,10 +43,11 @@ const AuthContext = createContext<AuthContextValue>({
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]         = useState<User | null>(null);
-  const [role, setRole]         = useState<AppRole>('student');
-  const [isLoading, setLoading] = useState(true);
-  const [authError, setError]   = useState('');
+  const [user, setUser]                     = useState<User | null>(null);
+  const [role, setRole]                     = useState<AppRole>('student');
+  const [isLoading, setLoading]             = useState(true);
+  const [authError, setError]               = useState('');
+  const [profileComplete, setProfileComplete] = useState(false);
 
   // Resolve role: admin email wins; hardcoded teachers next; otherwise read from Firestore
   const resolveRole = async (firebaseUser: User): Promise<AppRole> => {
@@ -85,6 +90,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Check if profile is complete (has required academic fields filled)
+  const checkProfileComplete = async (uid: string, resolvedRole: AppRole): Promise<boolean> => {
+    // Admins and teachers skip the profile gate
+    if (resolvedRole === 'admin' || resolvedRole === 'teacher') return true;
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (!snap.exists()) return false;
+      const data = snap.data();
+      // Profile is complete if all required fields are filled
+      return !!(data.profileComplete || (data.collegeId && data.department && data.academicYear && data.batch && data.section));
+    } catch {
+      return false;
+    }
+  };
+
+  // Called after ProfileCompletion form saves — re-check without full auth reload
+  const refreshProfile = async () => {
+    if (user) {
+      const complete = await checkProfileComplete(user.uid, role);
+      setProfileComplete(complete);
+    }
+  };
+
   // Listen to Firebase auth state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -97,9 +125,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e) {
           console.error('[Auth] Profile upsert failed:', e);
         }
+        const complete = await checkProfileComplete(firebaseUser.uid, resolvedRole);
+        setProfileComplete(complete);
       } else {
         setUser(null);
         setRole('student');
+        setProfileComplete(false);
       }
       setLoading(false);
     });
@@ -131,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, isLoading, signInWithGoogle, signOut, authError }}>
+    <AuthContext.Provider value={{ user, role, isLoading, profileComplete, refreshProfile, signInWithGoogle, signOut, authError }}>
       {children}
     </AuthContext.Provider>
   );
