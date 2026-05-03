@@ -1,81 +1,71 @@
 /**
- * faceService.ts — Browser-based face detection, recognition & liveness utilities.
+ * faceService.ts — Simplified face detection & recognition.
  *
- * Uses face-api.js (TensorFlow.js) for:
- *   - SSD MobilenetV1 face detection
- *   - 68-point face landmarks (eyes, nose, mouth)
- *   - 128-dimensional face descriptor for recognition
- *
- * Models are loaded from a CDN and cached by the browser.
+ * Uses face-api.js with TinyFaceDetector (fast, lightweight) instead of SSD MobilenetV1.
+ * Models loaded from a public CDN and cached by the browser.
  */
 
 import * as faceapi from 'face-api.js';
 
 // ─── CDN for pre-trained models ───────────────────────────────────────────────
-
-const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+// Using the official face-api.js weights hosted on jsdelivr
+const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
 
 let modelsLoaded = false;
+let modelsLoading: Promise<void> | null = null;
 
-// ─── Load Models ──────────────────────────────────────────────────────────────
+// ─── Load Models (singleton, fast TinyFaceDetector) ───────────────────────────
 
 export async function loadFaceModels(): Promise<void> {
   if (modelsLoaded) return;
-  await Promise.all([
-    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-  ]);
-  modelsLoaded = true;
+  if (modelsLoading) return modelsLoading;
+
+  modelsLoading = (async () => {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+    ]);
+    modelsLoaded = true;
+  })();
+
+  return modelsLoading;
 }
 
 export function areModelsLoaded(): boolean {
   return modelsLoaded;
 }
 
-// ─── Face Detection ───────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type FaceResult = {
   detection: faceapi.FaceDetection;
-  landmarks: faceapi.FaceLandmarks68;
   descriptor: Float32Array;
 };
 
+// ─── Detect Face (single-shot, not real-time) ─────────────────────────────────
+
 /**
- * Detect a single face from a video element, returning landmarks + descriptor.
- * Returns null if no face found or face confidence is too low.
+ * Detect a single face from a video/canvas/image element.
+ * Uses TinyFaceDetector for speed.
  */
 export async function detectSingleFace(
-  input: HTMLVideoElement | HTMLCanvasElement
+  input: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
 ): Promise<FaceResult | null> {
   const result = await faceapi
-    .detectSingleFace(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-    .withFaceLandmarks()
+    .detectSingleFace(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+    .withFaceLandmarks(true) // tiny landmarks
     .withFaceDescriptor();
 
   if (!result) return null;
   return {
     detection: result.detection,
-    landmarks: result.landmarks,
     descriptor: result.descriptor,
   };
 }
 
-/**
- * Compute just the 128D face descriptor from a video/canvas.
- */
-export async function computeDescriptor(
-  input: HTMLVideoElement | HTMLCanvasElement
-): Promise<Float32Array | null> {
-  const result = await detectSingleFace(input);
-  return result?.descriptor ?? null;
-}
-
 // ─── Face Matching ────────────────────────────────────────────────────────────
 
-/**
- * Euclidean distance between two 128D descriptors.
- */
 function euclideanDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < a.length; i++) {
@@ -85,8 +75,8 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
 }
 
 /**
- * Compare a live descriptor against an array of stored descriptors.
- * Returns match=true if the best distance is ≤ threshold.
+ * Compare a live descriptor against stored descriptors.
+ * Returns match=true if best distance ≤ threshold.
  */
 export function matchDescriptors(
   stored: number[][],
@@ -104,93 +94,10 @@ export function matchDescriptors(
   return { match: bestDist <= threshold, distance: bestDist };
 }
 
-// ─── Liveness Detection Utilities ─────────────────────────────────────────────
+// ─── Capture Utilities ────────────────────────────────────────────────────────
 
-/**
- * Eye Aspect Ratio (EAR) — measures how open an eye is.
- * When the eye is open, EAR ≈ 0.25–0.3. When closed, EAR ≈ 0.05–0.1.
- *
- * Uses the 6-point eye model from 68-point landmarks.
- */
-function eyeAspectRatio(eyePoints: faceapi.Point[]): number {
-  // Vertical distances
-  const v1 = Math.hypot(eyePoints[1].x - eyePoints[5].x, eyePoints[1].y - eyePoints[5].y);
-  const v2 = Math.hypot(eyePoints[2].x - eyePoints[4].x, eyePoints[2].y - eyePoints[4].y);
-  // Horizontal distance
-  const h = Math.hypot(eyePoints[0].x - eyePoints[3].x, eyePoints[0].y - eyePoints[3].y);
-  return (v1 + v2) / (2 * h);
-}
-
-/**
- * Detect if the user is blinking (both eyes EAR below threshold).
- */
-export function checkBlink(landmarks: faceapi.FaceLandmarks68): boolean {
-  const positions = landmarks.positions;
-  // Left eye: landmarks 36–41, Right eye: 42–47
-  const leftEye = positions.slice(36, 42);
-  const rightEye = positions.slice(42, 48);
-
-  const leftEAR = eyeAspectRatio(leftEye);
-  const rightEAR = eyeAspectRatio(rightEye);
-  const avgEAR = (leftEAR + rightEAR) / 2;
-
-  return avgEAR < 0.2; // Eyes are closed
-}
-
-/**
- * Detect if the user is smiling (mouth width-to-height ratio increases).
- */
-export function checkSmile(landmarks: faceapi.FaceLandmarks68): boolean {
-  const positions = landmarks.positions;
-  // Mouth corners: 48 (left), 54 (right)
-  // Upper lip top: 51, Lower lip bottom: 57
-  const mouthWidth = Math.hypot(
-    positions[54].x - positions[48].x,
-    positions[54].y - positions[48].y
-  );
-  const mouthHeight = Math.hypot(
-    positions[57].x - positions[51].x,
-    positions[57].y - positions[51].y
-  );
-
-  // A smile makes the mouth wider relative to height
-  const ratio = mouthWidth / (mouthHeight + 0.001);
-  return ratio > 4.0; // Smiling threshold — wide mouth with less height
-}
-
-/**
- * Detect head turn direction by checking nose tip offset from face center.
- */
-export function checkHeadTurn(
-  landmarks: faceapi.FaceLandmarks68,
-  direction: 'left' | 'right'
-): boolean {
-  const positions = landmarks.positions;
-  // Nose tip: landmark 30
-  // Face left edge: landmark 0, right edge: landmark 16
-  const noseTip = positions[30];
-  const leftEdge = positions[0];
-  const rightEdge = positions[16];
-
-  const faceWidth = rightEdge.x - leftEdge.x;
-  const faceCenterX = (leftEdge.x + rightEdge.x) / 2;
-  const noseOffset = (noseTip.x - faceCenterX) / faceWidth;
-
-  // Positive offset = nose is to the right of center (head turned left, from user's perspective)
-  // We need to account for the mirrored camera
-  if (direction === 'left') {
-    return noseOffset > 0.12; // Nose shifted right in camera = user turned head to their left
-  } else {
-    return noseOffset < -0.12; // Nose shifted left in camera = user turned head to their right
-  }
-}
-
-// ─── Capture Frame ────────────────────────────────────────────────────────────
-
-/**
- * Capture a frame from a video element as a base64 data URL (JPEG).
- */
-export function captureFrame(video: HTMLVideoElement, quality = 0.85): string {
+/** Capture a full frame from video as base64 JPEG. */
+export function captureFrame(video: HTMLVideoElement, quality = 0.8): string {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -199,9 +106,7 @@ export function captureFrame(video: HTMLVideoElement, quality = 0.85): string {
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-/**
- * Capture a square face crop from a video element.
- */
+/** Capture a square face crop from video. */
 export function captureFaceCrop(
   video: HTMLVideoElement,
   detection: faceapi.FaceDetection,
@@ -213,7 +118,6 @@ export function captureFaceCrop(
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
 
-  // Add some padding around the face
   const pad = box.width * 0.3;
   const sx = Math.max(0, box.x - pad);
   const sy = Math.max(0, box.y - pad);
@@ -226,10 +130,6 @@ export function captureFaceCrop(
 
 // ─── Device Fingerprint ───────────────────────────────────────────────────────
 
-/**
- * Generate a simple device fingerprint from browser properties.
- * Not cryptographically secure — just a best-effort identifier.
- */
 export function getDeviceFingerprint(): string {
   const raw = [
     navigator.userAgent,
@@ -238,12 +138,9 @@ export function getDeviceFingerprint(): string {
     navigator.language,
     navigator.hardwareConcurrency?.toString() || '',
   ].join('|');
-
-  // Simple hash
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
-    const char = raw.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
