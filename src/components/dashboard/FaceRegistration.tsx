@@ -22,6 +22,7 @@ export default function FaceRegistration() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [captureError, setCaptureError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const [photos, setPhotos] = useState<string[]>([]);
   const [descriptors, setDescriptors] = useState<number[][]>([]);
@@ -111,6 +112,7 @@ export default function FaceRegistration() {
   const handleSave = async () => {
     if (!user || photos.length === 0) return;
     setSaving(true);
+    setSaveError('');
     try {
       await setDoc(doc(db, 'users', user.uid), {
         facePhotos: photos,
@@ -121,8 +123,9 @@ export default function FaceRegistration() {
       setExistingRegistered(true);
       stopCamera();
       setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Save error:', e);
+      setSaveError(e.message || 'Failed to save face data to Firestore.');
     } finally {
       setSaving(false);
     }
@@ -273,6 +276,13 @@ export default function FaceRegistration() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
+              </div>
+            )}
+            
+            {saveError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                {saveError}
               </div>
             )}
 

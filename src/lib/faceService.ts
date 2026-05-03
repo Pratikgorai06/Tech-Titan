@@ -1,20 +1,22 @@
 /**
- * faceService.ts — Simplified face detection & recognition.
+ * faceService.ts — Browser-based face detection & recognition.
  *
- * Uses face-api.js with TinyFaceDetector (fast, lightweight) instead of SSD MobilenetV1.
- * Models loaded from a public CDN and cached by the browser.
+ * Uses face-api.js (TensorFlow.js) for:
+ *   - SSD MobilenetV1 face detection (Accurate)
+ *   - 68-point face landmarks
+ *   - 128-dimensional face descriptor for recognition
  */
 
 import * as faceapi from 'face-api.js';
 
 // ─── CDN for pre-trained models ───────────────────────────────────────────────
-// Using the official face-api.js weights hosted on jsdelivr
-const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 
 let modelsLoaded = false;
 let modelsLoading: Promise<void> | null = null;
 
-// ─── Load Models (singleton, fast TinyFaceDetector) ───────────────────────────
+// ─── Load Models (Accurate Models) ────────────────────────────────────────────
 
 export async function loadFaceModels(): Promise<void> {
   if (modelsLoaded) return;
@@ -22,8 +24,8 @@ export async function loadFaceModels(): Promise<void> {
 
   modelsLoading = (async () => {
     await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
     modelsLoaded = true;
@@ -36,25 +38,23 @@ export function areModelsLoaded(): boolean {
   return modelsLoaded;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Face Detection ───────────────────────────────────────────────────────────
 
 export type FaceResult = {
   detection: faceapi.FaceDetection;
   descriptor: Float32Array;
 };
 
-// ─── Detect Face (single-shot, not real-time) ─────────────────────────────────
-
 /**
  * Detect a single face from a video/canvas/image element.
- * Uses TinyFaceDetector for speed.
+ * Uses SsdMobilenetv1 for higher accuracy descriptor extraction.
  */
 export async function detectSingleFace(
   input: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
 ): Promise<FaceResult | null> {
   const result = await faceapi
-    .detectSingleFace(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
-    .withFaceLandmarks(true) // tiny landmarks
+    .detectSingleFace(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+    .withFaceLandmarks()
     .withFaceDescriptor();
 
   if (!result) return null;
@@ -74,10 +74,6 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
   return Math.sqrt(sum);
 }
 
-/**
- * Compare a live descriptor against stored descriptors.
- * Returns match=true if best distance ≤ threshold.
- */
 export function matchDescriptors(
   stored: number[][],
   live: Float32Array,
@@ -96,8 +92,7 @@ export function matchDescriptors(
 
 // ─── Capture Utilities ────────────────────────────────────────────────────────
 
-/** Capture a full frame from video as base64 JPEG. */
-export function captureFrame(video: HTMLVideoElement, quality = 0.8): string {
+export function captureFrame(video: HTMLVideoElement, quality = 0.85): string {
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -106,7 +101,6 @@ export function captureFrame(video: HTMLVideoElement, quality = 0.8): string {
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-/** Capture a square face crop from video. */
 export function captureFaceCrop(
   video: HTMLVideoElement,
   detection: faceapi.FaceDetection,
@@ -125,7 +119,7 @@ export function captureFaceCrop(
   const sh = Math.min(video.videoHeight - sy, box.height + pad * 2);
 
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, size, size);
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return canvas.toDataURL('image/jpeg', 0.85);
 }
 
 // ─── Device Fingerprint ───────────────────────────────────────────────────────
