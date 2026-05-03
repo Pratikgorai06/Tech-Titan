@@ -75,14 +75,15 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
 }
 
 export function matchDescriptors(
-  stored: number[][],
+  stored: string[],
   live: Float32Array,
   threshold = 0.6
 ): { match: boolean; distance: number } {
   if (!stored.length) return { match: false, distance: Infinity };
 
   let bestDist = Infinity;
-  for (const desc of stored) {
+  for (const descStr of stored) {
+    const desc = descStr.split(',').map(Number);
     const storedArr = new Float32Array(desc);
     const d = euclideanDistance(storedArr, live);
     if (d < bestDist) bestDist = d;

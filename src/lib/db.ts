@@ -29,7 +29,7 @@ export interface UserProfile {
   batch?: string;
   section?: string;
   collegeId?: string; // roll number / enrollment number
-  faceDescriptors?: number[][];  // 1–3 stored 128D face descriptors
+  faceDescriptors?: string[];     // Serialized 128D descriptors (to avoid Firestore nested array error)
   facePhotos?: string[];         // 1–3 base64 face thumbnails
   faceRegistered?: boolean;      // quick flag
 }

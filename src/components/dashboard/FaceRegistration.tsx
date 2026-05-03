@@ -25,7 +25,7 @@ export default function FaceRegistration() {
   const [saveError, setSaveError] = useState('');
 
   const [photos, setPhotos] = useState<string[]>([]);
-  const [descriptors, setDescriptors] = useState<number[][]>([]);
+  const [descriptors, setDescriptors] = useState<string[]>([]);
   const [existingRegistered, setExistingRegistered] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -93,7 +93,7 @@ export default function FaceRegistration() {
       const descArray = Array.from(result.descriptor);
 
       setPhotos((prev) => [...prev, thumbnail]);
-      setDescriptors((prev) => [...prev, descArray]);
+      setDescriptors((prev) => [...prev, descArray.join(',')]);
       setCaptureError('');
     } catch (e) {
       setCaptureError('Face detection failed. Please try again.');
