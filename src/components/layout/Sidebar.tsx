@@ -4,7 +4,7 @@ import {
   Briefcase, CreditCard, Settings, X, UserCircle,
   ShieldCheck, LogOut, MessageCircle, BookOpen,
   ClipboardList, QrCode, GraduationCap, Landmark, Users2,
-  ScanFace
+  ScanFace, FileText
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'motion/react';
@@ -39,6 +39,7 @@ const clubPresidentNav = [
 const teacherNav = [
   { id: 'dashboard', label: 'Teacher Panel', icon: GraduationCap },
   { id: 'attendance', label: 'QR Attendance', icon: QrCode, badge: 'NEW' },
+  { id: 'report', label: 'Daily Report', icon: FileText, badge: 'NEW' },
   { id: 'chat', label: 'Campus Chat', icon: MessageCircle },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

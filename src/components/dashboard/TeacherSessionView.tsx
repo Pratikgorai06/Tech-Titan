@@ -161,11 +161,10 @@ export default function TeacherSessionView() {
                 <tr className="bg-slate-50 border-b border-brand-border text-[10px] font-black text-brand-text-muted uppercase tracking-widest">
                   <th className="px-6 py-4">#</th>
                   <th className="px-6 py-4">Student</th>
-                  <th className="px-6 py-4">College ID</th>
+                  <th className="px-6 py-4">Reg No</th>
+                  <th className="px-6 py-4">Class Details</th>
                   <th className="px-6 py-4">Time</th>
-                  <th className="px-6 py-4">Location</th>
-                  <th className="px-6 py-4">Face</th>
-                  <th className="px-6 py-4">Liveness</th>
+                  <th className="px-6 py-4">Verification</th>
                   <th className="px-6 py-4">Selfie</th>
                 </tr>
               </thead>
@@ -196,42 +195,40 @@ export default function TeacherSessionView() {
                         <span className="font-bold text-[13px] text-brand-text-main">{r.studentName}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-mono text-[12px] text-brand-text-muted">{r.collegeId}</td>
+                    <td className="px-6 py-4 font-mono text-[12px] text-brand-text-main font-bold">
+                      {r.regNo || r.collegeId}
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-[11px] font-medium text-brand-text-main">
+                        {r.department} · {r.academicYear}
+                      </p>
+                      <p className="text-[10px] text-brand-text-muted">
+                        {r.section} · {r.batch}
+                      </p>
+                    </td>
                     <td className="px-6 py-4 text-[12px] text-brand-text-muted">
-                      {r.markedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      {r.markedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-6 py-4">
-                      {r.verified ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 border border-green-200 rounded-full w-fit">
-                          <CheckCircle2 className="w-3 h-3 text-green-600" />
-                          <span className="text-[10px] font-black text-green-700 uppercase">Verified</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full w-fit">
-                          <XCircle className="w-3 h-3 text-amber-600" />
-                          <span className="text-[10px] font-black text-amber-700 uppercase">Flagged</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {r.faceVerified ? (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 border border-purple-200 rounded-full w-fit">
-                          <ScanFace className="w-3 h-3 text-purple-600" />
-                          <span className="text-[9px] font-black text-purple-700 uppercase">Match</span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-brand-text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {r.livenessVerified ? (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-full w-fit">
-                          <Shield className="w-3 h-3 text-indigo-600" />
-                          <span className="text-[9px] font-black text-indigo-700 uppercase">Pass</span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-brand-text-muted">—</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {r.verified ? (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full w-fit">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-green-600" />
+                            <span className="text-[8px] font-black text-green-700 uppercase">GPS OK</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full w-fit">
+                            <XCircle className="w-2.5 h-2.5 text-amber-600" />
+                            <span className="text-[8px] font-black text-amber-700 uppercase">Flagged</span>
+                          </div>
+                        )}
+                        {r.faceVerified && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-50 border border-purple-200 rounded-full w-fit">
+                            <ScanFace className="w-2.5 h-2.5 text-purple-600" />
+                            <span className="text-[8px] font-black text-purple-700 uppercase">Face Match</span>
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       {r.selfieUrl ? (

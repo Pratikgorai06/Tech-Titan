@@ -108,6 +108,11 @@ export interface AttendanceRecord {
   studentUid: string;
   studentName: string;
   collegeId: string;
+  regNo?: string;
+  department?: string;
+  academicYear?: string | number;
+  section?: string;
+  batch?: string;
   selfieUrl: string;
   locationLat: number;
   locationLng: number;

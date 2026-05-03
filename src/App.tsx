@@ -22,6 +22,7 @@ import NoticeView from './components/dashboard/NoticeView';
 import TeacherDashboard from './components/dashboard/TeacherDashboard';
 import TeacherQrAttendance from './components/dashboard/TeacherQrAttendance';
 import TeacherSessionView from './components/dashboard/TeacherSessionView';
+import TeacherDailyReport from './components/dashboard/TeacherDailyReport';
 import ClubsView from './components/dashboard/ClubsView';
 import ClubPresidentDashboard from './components/dashboard/ClubPresidentDashboard';
 import Chatbot from './components/chat/Chatbot';
@@ -125,6 +126,7 @@ export default function App() {
                 <>
                   <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
                   <Route path="/teacher/attendance" element={<TeacherQrAttendance />} />
+                  <Route path="/teacher/report" element={<TeacherDailyReport />} />
                   <Route path="/teacher/session/:sessionId" element={<TeacherSessionView />} />
                   <Route path="/teacher/settings" element={<StudentSettings />} />
                   <Route path="*" element={<Navigate to="/teacher/dashboard" replace />} />

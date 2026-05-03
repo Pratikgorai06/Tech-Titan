@@ -131,6 +131,11 @@ export async function markQrAttendance(
     faceVerified: record.faceVerified ?? false,
     livenessVerified: record.livenessVerified ?? false,
     deviceId: record.deviceId ?? '',
+    regNo: record.regNo || '',
+    department: record.department || '',
+    academicYear: record.academicYear || '',
+    section: record.section || '',
+    batch: record.batch || '',
   });
 
   // 5. Increment student totalAttendance
@@ -183,4 +188,15 @@ export async function getStudentAttendanceHistory(studentUid: string): Promise<A
   const snap = await getDocs(q);
   const records = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
   return records.sort((a, b) => b.markedAt.toMillis() - a.markedAt.toMillis());
+}
+
+export async function getAttendanceByDateRange(start: Date, end: Date): Promise<AttendanceRecord[]> {
+  const q = query(
+    collection(db, 'attendanceRecords'),
+    where('markedAt', '>=', Timestamp.fromDate(start)),
+    where('markedAt', '<=', Timestamp.fromDate(end)),
+    orderBy('markedAt', 'desc')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as AttendanceRecord));
 }

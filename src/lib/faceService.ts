@@ -92,19 +92,20 @@ export function matchDescriptors(
 
 // ─── Capture Utilities ────────────────────────────────────────────────────────
 
-export function captureFrame(video: HTMLVideoElement, quality = 0.85): string {
+export function captureFrame(video: HTMLVideoElement, maxWidth = 480, quality = 0.7): string {
   const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = video.videoWidth * scale;
+  canvas.height = video.videoHeight * scale;
   const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(video, 0, 0);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/jpeg', quality);
 }
 
 export function captureFaceCrop(
   video: HTMLVideoElement,
   detection: faceapi.FaceDetection,
-  size = 200
+  size = 160
 ): string {
   const box = detection.box;
   const canvas = document.createElement('canvas');
@@ -119,7 +120,7 @@ export function captureFaceCrop(
   const sh = Math.min(video.videoHeight - sy, box.height + pad * 2);
 
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, size, size);
-  return canvas.toDataURL('image/jpeg', 0.85);
+  return canvas.toDataURL('image/jpeg', 0.7);
 }
 
 // ─── Device Fingerprint ───────────────────────────────────────────────────────

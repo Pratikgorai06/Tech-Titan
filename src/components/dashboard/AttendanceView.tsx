@@ -213,6 +213,11 @@ export default function AttendanceView() {
       faceVerified: faceMatch,
       livenessVerified: true,
       deviceId: getDeviceFingerprint(),
+      regNo: dbUser?.collegeId || '',
+      department: dbUser?.department || '',
+      academicYear: dbUser?.academicYear || '',
+      section: dbUser?.section || '',
+      batch: dbUser?.batch || '',
     });
 
     if (result.success) {
