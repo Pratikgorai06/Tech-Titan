@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   ArrowLeft, Users, MapPin, Camera, Clock,
-  CheckCircle2, XCircle, Loader2, QrCode, ScanFace, Shield
+  CheckCircle2, XCircle, Loader2, QrCode, ScanFace, Shield,
+  Download
 } from 'lucide-react';
 import { getQrSession, getSessionAttendance } from '../../lib/attendanceDb';
 import type { QrSession, AttendanceRecord } from '../../lib/db';
@@ -55,6 +56,30 @@ export default function TeacherSessionView() {
   const livenessCount = records.filter((r) => r.livenessVerified).length;
   const isActive = session.active && session.expiresAt.toMillis() > Date.now();
 
+  const exportToCsv = () => {
+    if (!session || records.length === 0) return;
+    const headers = ['S.No', 'Student Name', 'College ID', 'Time', 'Location Verified', 'Face Verified', 'Liveness Verified'];
+    const rows = records.map((r, i) => [
+      i + 1,
+      r.studentName,
+      r.collegeId,
+      r.markedAt.toDate().toLocaleString(),
+      r.verified ? 'Yes' : 'No',
+      r.faceVerified ? 'Yes' : 'No',
+      r.livenessVerified ? 'Yes' : 'No'
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${session.subject}_Attendance_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
       {/* Header */}
@@ -86,6 +111,14 @@ export default function TeacherSessionView() {
               Expires {session.expiresAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
+          <button
+            onClick={exportToCsv}
+            disabled={records.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-brand-border rounded-xl text-sm font-bold text-brand-text-main hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
         </div>
       </header>
 

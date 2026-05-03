@@ -114,7 +114,7 @@ export async function markQrAttendance(
 
   // 3. Verify location — treat (0,0) as no-GPS (denied/unavailable) → always flagged
   const noGps = record.locationLat === 0 && record.locationLng === 0;
-  const dist = noGps ? 99999 : haversineKm(record.locationLat, record.locationLng, record.campusLat, record.campusLng);
+  const dist = noGps ? 99999 : haversineKm(record.locationLat, record.locationLng, session.campusLat, session.campusLng);
   const verified = !noGps && dist <= CAMPUS_RADIUS_KM;
 
   // 4. Write record

@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import {
   createQrSession, endQrSession, listenToSession,
-  listenToSessionAttendance
+  listenToSessionAttendance, getTeacherSessions
 } from '../../lib/attendanceDb';
 import type { QrSession, AttendanceRecord } from '../../lib/db';
 import { cn } from '../../lib/utils';
@@ -98,6 +98,32 @@ export default function TeacherQrAttendance() {
     tick();
     countdownRef.current = setInterval(tick, 1000);
   }, []);
+
+  // Restore active session on mount
+  useEffect(() => {
+    if (!user) return;
+    const restoreSession = async () => {
+      const sessions = await getTeacherSessions(user.uid);
+      const active = sessions.find(s => s.active && s.expiresAt.toMillis() > Date.now());
+      if (active) {
+        setActiveSession(active);
+        const qrPayload = JSON.stringify({ sessionId: active.id, v: 1 });
+        const dataUrl = await QRCode.toDataURL(qrPayload, {
+          width: 400, margin: 2, color: { dark: '#1e293b', light: '#ffffff' },
+        });
+        setQrDataUrl(dataUrl);
+
+        sessionUnsubRef.current?.();
+        sessionUnsubRef.current = listenToSession(active.id, (s) => setActiveSession(s));
+
+        attendeesUnsubRef.current?.();
+        attendeesUnsubRef.current = listenToSessionAttendance(active.id, setAttendees);
+
+        startCountdown(active.expiresAt.toMillis());
+      }
+    };
+    restoreSession();
+  }, [user, startCountdown]);
 
   const generateQr = async () => {
     if (!user || !subject.trim()) return;
