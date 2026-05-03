@@ -36,6 +36,7 @@ export default function TeacherQrAttendance() {
   const [countdown, setCountdown] = useState(0);
   const [creating, setCreating] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const [copied, setCopied] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [teacherCoords, setTeacherCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -103,23 +104,32 @@ export default function TeacherQrAttendance() {
   useEffect(() => {
     if (!user) return;
     const restoreSession = async () => {
-      const sessions = await getTeacherSessions(user.uid);
-      const active = sessions.find(s => s.active && s.expiresAt.toMillis() > Date.now());
-      if (active) {
-        setActiveSession(active);
-        const qrPayload = JSON.stringify({ sessionId: active.id, v: 1 });
-        const dataUrl = await QRCode.toDataURL(qrPayload, {
-          width: 400, margin: 2, color: { dark: '#1e293b', light: '#ffffff' },
-        });
-        setQrDataUrl(dataUrl);
+      try {
+        const sessions = await getTeacherSessions(user.uid);
+        const active = sessions.find(s => s.active && s.expiresAt.toMillis() > Date.now());
+        if (active) {
+          setActiveSession(active);
+          const qrPayload = JSON.stringify({ sessionId: active.id, v: 1 });
+          const dataUrl = await QRCode.toDataURL(qrPayload, {
+            width: 400, margin: 2, color: { dark: '#1e293b', light: '#ffffff' },
+          });
+          setQrDataUrl(dataUrl);
 
-        sessionUnsubRef.current?.();
-        sessionUnsubRef.current = listenToSession(active.id, (s) => setActiveSession(s));
+          sessionUnsubRef.current?.();
+          sessionUnsubRef.current = listenToSession(active.id, (s) => {
+            if (s && !s.active) setActiveSession(null);
+            else setActiveSession(s);
+          });
 
-        attendeesUnsubRef.current?.();
-        attendeesUnsubRef.current = listenToSessionAttendance(active.id, setAttendees);
+          attendeesUnsubRef.current?.();
+          attendeesUnsubRef.current = listenToSessionAttendance(active.id, setAttendees);
 
-        startCountdown(active.expiresAt.toMillis());
+          startCountdown(active.expiresAt.toMillis());
+        }
+      } catch (e) {
+        console.error('Session recovery failed:', e);
+      } finally {
+        setRestoring(false);
       }
     };
     restoreSession();
@@ -200,6 +210,15 @@ export default function TeacherQrAttendance() {
   const mins = Math.floor(countdown / 60);
   const secs = countdown % 60;
   const isExpired = activeSession && (countdown === 0 || !activeSession.active);
+
+  if (restoring) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-brand-primary" />
+        <p className="text-sm font-bold text-brand-text-muted">Checking for active session...</p>
+      </div>
+    );
+  }
 
   // ─── QR Active View ──────────────────────────────────────────────────────────
   if (activeSession) {

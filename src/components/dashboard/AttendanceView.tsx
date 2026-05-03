@@ -172,7 +172,7 @@ export default function AttendanceView() {
             const matchResult = matchDescriptors(dbUser.faceDescriptors, result.descriptor);
             faceMatch = matchResult.match;
             if (!faceMatch) {
-              setErrorMsg(`⚠️ Face mismatch (score: ${matchResult.distance.toFixed(2)}). Attendance saved but flagged.`);
+              setErrorMsg(`⚠️ Face mismatch (Similarity: ${((1 - matchResult.distance) * 100).toFixed(0)}%). Attendance saved but flagged.`);
             }
           }
         } catch {
